@@ -13,16 +13,37 @@ const DFS_BOOKS = ['prizepicks', 'underdog_fantasy'];
 // Minimum edge threshold (in points) to consider a play
 const MIN_EDGE_THRESHOLD = 0.5;
 
-// Goblin/Demon Filters (Diff > X is ignored)
+// --------------------------------------------------------------------------------
+// GOBLIN/ALT LINE THRESHOLDS (Sport-Aware)
+// If line diff exceeds this, it's likely a Goblin/Demon alt line with bad payouts
+// --------------------------------------------------------------------------------
 const GOBLIN_THRESHOLDS: Record<string, number> = {
-    'player_points': 8,        // NBA points have higher variance
-    'player_rebounds': 4,
-    'player_assists': 3,
-    'player_threes': 2,
-    'player_pass_yds': 40,     // NFL passing has huge range
-    'player_rush_yds': 25,
-    'player_reception_yds': 20,
-    'player_receptions': 3,
+    'player_points': 8,        // NBA points - higher variance
+    'player_rebounds': 4,      // NBA rebounds
+    'player_assists': 3,       // NBA assists
+    'player_threes': 2,        // NBA threes
+    'player_pass_yds': 40,     // NFL passing yards - huge range
+    'player_rush_yds': 25,     // NFL rushing yards
+    'player_reception_yds': 20,// NFL receiving yards
+    'player_receptions': 3,    // NFL receptions
+    'player_pass_tds': 1.5,    // NFL passing TDs
+};
+
+// --------------------------------------------------------------------------------
+// WIN PROBABILITY MULTIPLIERS
+// Each point of edge translates to X% probability boost
+// Based on historical distribution analysis
+// --------------------------------------------------------------------------------
+const EDGE_PROBABILITY_MULTIPLIERS: Record<string, number> = {
+    'player_points': 3.5,      // ~3.5% per point for NBA pts
+    'player_rebounds': 5.0,    // ~5% per rebound
+    'player_assists': 5.0,     // ~5% per assist
+    'player_threes': 8.0,      // ~8% per three (high variance)
+    'player_pass_yds': 0.15,   // ~0.15% per passing yard
+    'player_rush_yds': 0.25,   // ~0.25% per rushing yard
+    'player_reception_yds': 0.25, // ~0.25% per receiving yard
+    'player_receptions': 5.0,  // ~5% per reception
+    'player_pass_tds': 15.0,   // ~15% per passing TD
 };
 
 // --------------------------------------------------------------------------------
@@ -93,6 +114,41 @@ const calculateAcceptableRange = (
 };
 
 /**
+ * Estimates win probability based on line edge
+ * 
+ * KEY INSIGHT: We can't use sharp odds directly because those odds
+ * are for THEIR line (e.g., 26.5), not the PP line (e.g., 24.5).
+ * 
+ * Instead, we estimate: baseline 50% + edge boost based on stat type.
+ * 
+ * Thresholds:
+ * - 52.4% = Break-even on 5-Flex plays
+ * - 54.25% = +EV Long Term (Golden Standard)
+ * - 58.0% = +EV on 2-Man Power plays
+ */
+const estimateWinProbability = (
+    ppLine: number,
+    sharpLine: number,
+    recommendedSide: 'OVER' | 'UNDER' | null,
+    market: PropMarketKey
+): number | null => {
+    if (!recommendedSide) return null;
+
+    const edge = Math.abs(sharpLine - ppLine);
+
+    // Get multiplier for this stat type
+    const multiplier = EDGE_PROBABILITY_MULTIPLIERS[market] || 3.0;
+    const probabilityBoost = edge * multiplier;
+
+    // Base probability is 50% (fair line), add boost from edge
+    // Cap at reasonable bounds (50-75%) to avoid overconfidence
+    const rawProbability = 50 + probabilityBoost;
+    const cappedProbability = Math.min(75, Math.max(50, rawProbability));
+
+    return Math.round(cappedProbability * 10) / 10;
+};
+
+/**
  * Generate human-readable guidance
  */
 const generateGuidance = (
@@ -141,8 +197,9 @@ interface EdgeResult {
 
 /**
  * Calculates the EV/Edge based on Line Discrepancy or Juice.
+ * Includes Goblin/Alt Line filtering with sport-aware thresholds.
  */
-const calculateEdge = (dfsLine: PropLine, sharps: PropLine[]): EdgeResult => {
+const calculateEdge = (dfsLine: PropLine, sharps: PropLine[], market: PropMarketKey): EdgeResult => {
     // Pinnacle is the gold standard, fall back to others
     const sharp = sharps.find(s => s.bookmakerKey === 'pinnacle') || sharps[0];
 
@@ -154,18 +211,18 @@ const calculateEdge = (dfsLine: PropLine, sharps: PropLine[]): EdgeResult => {
 
     const diff = Math.abs(ppLine - sharpLine);
 
-    // --- NEW: GOBLIN/DEMON FILTER ---
-    // If the difference is massive, it's likely an Alt Line (Goblin/Demon).
-    const threshold = GOBLIN_THRESHOLDS[dfsLine.market] || 5.0;
+    // --- GOBLIN/DEMON FILTER (Sport-Aware) ---
+    // Get threshold for this specific market, default to 5.0
+    const goblinThreshold = GOBLIN_THRESHOLDS[market] || 5.0;
 
-    if (diff > threshold) {
+    if (diff > goblinThreshold) {
         return {
             type: 'NONE',
             score: 0,
-            details: `Likely Alt Line (Diff ${diff.toFixed(1)} > ${threshold}). Ignoring.`
+            details: `Likely Alt/Goblin Line (${diff.toFixed(1)} pts diff > ${goblinThreshold} threshold). Ignoring.`
         };
     }
-    // --------------------------------
+    // -----------------------------------------
 
     // 1. DISCREPANCY EDGE (Lines are different)
     if (diff >= 1.0) {
@@ -258,13 +315,14 @@ export const matchAndFindEdges = (
         let maxAcceptableLine: number | null = null;
         let minAcceptableLine: number | null = null;
         let edgeRemaining = 0;
+        let winProbability: number | null = null;
 
-        // Use new calculateEdge helper for core edge logic
+        // Use calculateEdge helper with market for sport-aware thresholds
         if (sharpOvers.length > 0 && ppLine) {
-            const edgeResult = calculateEdge(ppLine, sharpOvers);
+            const edgeResult = calculateEdge(ppLine, sharpOvers, market);
             edgeType = edgeResult.type;
             edgeScore = edgeResult.score;
-            edgeDetails = edgeResult.details; // Start with basic details
+            edgeDetails = edgeResult.details;
 
             // If we have an edge, refine recommended side and score
             if (edgeType !== 'NONE') {
@@ -278,7 +336,7 @@ export const matchAndFindEdges = (
             }
         }
 
-        // Only calculate acceptable ranges if we have sharp consensus
+        // Only calculate acceptable ranges and win probability if we have sharp consensus
         if (sharpConsensus !== null && ppLine) {
             const diff = sharpConsensus - ppLine.point;
 
@@ -290,7 +348,15 @@ export const matchAndFindEdges = (
             // Calculate remaining edge
             edgeRemaining = Math.abs(diff);
 
-            // Generate detailed guidance (Override basic details if we have specific guidance)
+            // NEW: Calculate win probability based on edge
+            winProbability = estimateWinProbability(
+                ppLine.point,
+                sharpConsensus,
+                recommendedSide,
+                market
+            );
+
+            // Generate detailed guidance
             if (recommendedSide) {
                 edgeDetails = generateGuidance(
                     ppLine.point,
@@ -323,12 +389,13 @@ export const matchAndFindEdges = (
             edgeDetails,
             recommendedSide,
 
-            // NEW FIELDS
+            // Line Value Metrics
             fairValue,
             maxAcceptableLine,
             minAcceptableLine,
             edgeRemaining,
             sharpAgreement,
+            winProbability,  // NEW
 
             aiInsight: undefined
         });

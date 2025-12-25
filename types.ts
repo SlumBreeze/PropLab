@@ -84,6 +84,7 @@ export interface PlayerPropItem {
   minAcceptableLine: number | null; // For UNDER plays: don't take below this
   edgeRemaining: number;           // How much edge is left at current line
   sharpAgreement: number;          // 0-100% how much sharps agree with each other
+  winProbability: number | null;   // Estimated win % based on edge (>54.25 = +EV)
 
   targetLine?: number;
   // AI Context

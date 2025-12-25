@@ -8,6 +8,11 @@ import { PlayerPropItem, Slip, SlipAnalysisResult } from '../types';
 
 const formatOdds = (odds: number) => (odds > 0 ? `+${odds}` : `${odds}`);
 
+// Win Probability Thresholds
+const WIN_PROB_BREAKEVEN_5FLEX = 52.4;
+const WIN_PROB_PROFITABLE = 54.25;
+const WIN_PROB_POWER_PLAY = 58.0;
+
 /**
  * Prop Card Component
  * Displays a single player prop with comparison to sharp lines.
@@ -27,7 +32,8 @@ const PropCard: React.FC<{
         fairValue,
         maxAcceptableLine,
         minAcceptableLine,
-        sharpAgreement
+        sharpAgreement,
+        winProbability
     } = item;
 
     // Determine edge styling
@@ -53,6 +59,10 @@ const PropCard: React.FC<{
         ? (maxAcceptableLine === null || ppLine <= maxAcceptableLine)
         : (minAcceptableLine === null || ppLine >= minAcceptableLine);
 
+    // Win Probability Badge Logic
+    const isProfitable = winProbability !== null && winProbability >= WIN_PROB_PROFITABLE;
+    const isPowerPlayWorthy = winProbability !== null && winProbability >= WIN_PROB_POWER_PLAY;
+
     return (
         <div className={`relative group backdrop-blur-sm border transition-all duration-300 hover:scale-[1.01] p-4 rounded-xl
             ${isHighlighted ? 'bg-indigo-900/30 ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'bg-slate-900/40'}
@@ -64,8 +74,24 @@ const PropCard: React.FC<{
                     <h3 className="text-lg font-bold text-slate-100 leading-tight">{item.playerName}</h3>
                     <p className="text-xs text-slate-400 font-medium tracking-wider">{item.team} • {primaryType}</p>
                 </div>
-                {/* Edge Badge + Sharp Agreement */}
+
+                {/* Badges Column */}
                 <div className="flex flex-col items-end gap-1">
+                    {/* WIN PROBABILITY BADGE - THE GOLDEN CROWN */}
+                    {winProbability !== null && winProbability > 50 && (
+                        <div className={`text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 ${isPowerPlayWorthy
+                                ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black shadow-[0_0_12px_rgba(251,191,36,0.5)]'
+                                : isProfitable
+                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                    : 'bg-slate-800 text-slate-400'
+                            }`}>
+                            {winProbability}% Win
+                            {isPowerPlayWorthy && <span>👑</span>}
+                            {isProfitable && !isPowerPlayWorthy && <span>✓</span>}
+                        </div>
+                    )}
+
+                    {/* Edge Type Badge */}
                     {edgeType !== 'NONE' && (
                         <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${edgeType === 'DISCREPANCY'
                             ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
@@ -74,6 +100,8 @@ const PropCard: React.FC<{
                             {edgeType}
                         </div>
                     )}
+
+                    {/* Sharp Agreement */}
                     {sharpAgreement !== undefined && sharpAgreement < 100 && (
                         <div className={`text-[9px] px-1.5 py-0.5 rounded ${sharpAgreement >= 80 ? 'text-emerald-400' :
                             sharpAgreement >= 50 ? 'text-yellow-400' : 'text-rose-400'
@@ -97,7 +125,7 @@ const PropCard: React.FC<{
                 </div>
             </div>
 
-            {/* NEW: Acceptable Range Indicator */}
+            {/* Acceptable Range Indicator */}
             {recommendedSide && (maxAcceptableLine || minAcceptableLine) && (
                 <div className={`mb-3 p-2 rounded-lg text-xs ${isLineStillGood
                     ? 'bg-emerald-950/30 border border-emerald-500/20 text-emerald-300'
@@ -122,6 +150,7 @@ const PropCard: React.FC<{
                 >
                     <span className="text-lg">{recommendedSide === 'OVER' ? '📈' : '📉'}</span>
                     TAKE {recommendedSide} {ppLine}
+                    {isProfitable && <span className="text-amber-300">⚡</span>}
                 </button>
             ) : recommendedSide && !isLineStillGood ? (
                 <div className="w-full py-3 rounded-lg bg-slate-800 text-slate-500 text-sm text-center font-bold">
@@ -174,7 +203,7 @@ const SlipSidebar: React.FC<{
         return count === 3 ? 2.25 : count === 4 ? 5 : count === 5 ? 10 : count === 6 ? 25 : 0;
     };
 
-    // --- NEW: SLIP OPTIMIZER LOGIC ---
+    // --- SLIP OPTIMIZER LOGIC ---
     // Based on "How to Beat PrizePicks With Math"
     const getImpliedOdds = (count: number, type: 'POWER' | 'FLEX') => {
         if (count === 2 && type === 'POWER') return -137; // Acceptable for Correlation
@@ -190,7 +219,12 @@ const SlipSidebar: React.FC<{
     const multiplier = getMultiplier(slip.selections.length, slip.type);
     const impliedOdds = getImpliedOdds(slip.selections.length, slip.type);
     const isOptimal = impliedOdds !== 0 && impliedOdds > -120; // Green if -119 or better
-    // ---------------------------------
+
+    // Calculate average win probability for the slip
+    const selectionsWithProb = slip.selections.filter(s => s.winProbability !== null);
+    const avgWinProb = selectionsWithProb.length > 0
+        ? selectionsWithProb.reduce((sum, s) => sum + (s.winProbability || 0), 0) / selectionsWithProb.length
+        : null;
 
     return (
         <div className="h-full flex flex-col border-l border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -206,6 +240,12 @@ const SlipSidebar: React.FC<{
                 <h2 className="text-xl font-black text-white">
                     {slip.selections.length} Leg {slip.type === 'POWER' ? 'Power Play' : 'Flex Play'}
                 </h2>
+                {/* Average Win Probability */}
+                {avgWinProb !== null && (
+                    <div className={`mt-2 text-xs font-bold ${avgWinProb >= WIN_PROB_PROFITABLE ? 'text-amber-400' : 'text-slate-500'}`}>
+                        Avg Win Prob: {avgWinProb.toFixed(1)}% {avgWinProb >= WIN_PROB_PROFITABLE && '👑'}
+                    </div>
+                )}
             </div>
 
             {/* Selections List */}
@@ -222,10 +262,16 @@ const SlipSidebar: React.FC<{
                             <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-slate-500">
                                 {sel.playerName.charAt(0)}
                             </div>
-                            <div>
+                            <div className="flex-1">
                                 <div className="text-sm font-bold text-slate-200">{sel.playerName}</div>
                                 <div className="text-[10px] text-slate-500">{sel.team} • {sel.market.split('_')[1]}</div>
                             </div>
+                            {/* Win Prob Mini Badge */}
+                            {sel.winProbability !== null && sel.winProbability >= WIN_PROB_PROFITABLE && (
+                                <div className="text-[9px] font-bold text-amber-400">
+                                    {sel.winProbability}%
+                                </div>
+                            )}
                         </div>
                         <div className="mt-2 flex items-center justify-between bg-slate-950 rounded p-2">
                             <span className={`text-xs font-bold ${sel.selectedSide === 'OVER' ? 'text-emerald-400' : 'text-rose-400'}`}>
@@ -268,18 +314,17 @@ const SlipSidebar: React.FC<{
             {/* Footer / Payout */}
             <div className="p-4 bg-slate-900 border-t border-white/5">
 
-                {/* --- NEW: MATH WARNING BANNER --- */}
+                {/* MATH WARNING BANNER */}
                 {impliedOdds !== 0 && (
                     <div className={`mb-3 p-2 rounded text-[10px] text-center font-bold border ${isOptimal
                         ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
                         : 'bg-orange-500/10 text-orange-400 border-orange-500/30'
                         }`}>
                         {isOptimal
-                            ? "⚡ MATHEMATICALLY OPTIMAL SLIP (-119 Odds)"
-                            : `⚠️ SUB-OPTIMAL SLIP (${impliedOdds} Odds). Try 5-Flex.`}
+                            ? `⚡ OPTIMAL SLIP (${impliedOdds} implied odds)`
+                            : `⚠️ SUB-OPTIMAL (${impliedOdds} odds). Try 5-Flex for best math.`}
                     </div>
                 )}
-                {/* -------------------------------- */}
 
                 {/* ANALYZE BUTTON */}
                 <button
@@ -328,7 +373,7 @@ const PropScout: React.FC = () => {
         analyzeCurrentSlip,
         slipAnalysis,
         analysisLoading,
-        highlightTeam // <--- Add this to destructuring from useGameContext
+        highlightTeam
     } = useGameContext();
 
     const [filter, setFilter] = useState<'ALL' | 'NBA' | 'NFL'>('ALL');
@@ -341,6 +386,7 @@ const PropScout: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(today);
 
     // Convert props map to array, filter by sport and search, then sort by Edge Score
+    // FIXED: Explicit type annotations for TypeScript
     const propList: PlayerPropItem[] = (Object.values(props) as PlayerPropItem[])
         .filter((p: PlayerPropItem) => {
             // Sport filter
@@ -469,12 +515,12 @@ const PropScout: React.FC = () => {
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                            {propList.map(prop => (
+                            {propList.map((prop: PlayerPropItem) => (
                                 <PropCard
                                     key={prop.id}
                                     item={prop}
                                     onAdd={(side) => addSelectionToSlip(prop, side)}
-                                    isHighlighted={highlightTeam === prop.team} // <--- Pass the check
+                                    isHighlighted={highlightTeam === prop.team}
                                 />
                             ))}
                         </div>
