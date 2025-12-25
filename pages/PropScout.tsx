@@ -16,7 +16,18 @@ const PropCard: React.FC<{
     item: PlayerPropItem;
     onAdd: (side: 'OVER' | 'UNDER') => void
 }> = ({ item, onAdd }) => {
-    const { prizePicksLine, sharpLines, edgeType, edgeDetails, edgeScore, recommendedSide } = item;
+    const {
+        prizePicksLine,
+        sharpLines,
+        edgeType,
+        edgeDetails,
+        edgeScore,
+        recommendedSide,
+        fairValue,
+        maxAcceptableLine,
+        minAcceptableLine,
+        sharpAgreement
+    } = item;
 
     // Determine edge styling
     let edgeColor = "border-slate-800";
@@ -36,55 +47,83 @@ const PropCard: React.FC<{
         : '--';
     const primaryType = prizePicksLine?.market?.replace('player_', '').replace('_', ' ').toUpperCase() || "PROP";
 
+    // Determine if line is still valid
+    const isLineStillGood = recommendedSide === 'OVER'
+        ? (maxAcceptableLine === null || ppLine <= maxAcceptableLine)
+        : (minAcceptableLine === null || ppLine >= minAcceptableLine);
+
     return (
-        <div
-            className={`relative group bg-slate-900/40 backdrop-blur-sm border ${edgeColor} ${glowEffect} rounded-xl p-4 transition-all duration-300 hover:scale-[1.01] hover:bg-slate-800/60 hover:border-slate-600`}
-        >
+        <div className={`relative group bg-slate-900/40 backdrop-blur-sm border ${edgeColor} ${glowEffect} rounded-xl p-4 transition-all duration-300 hover:scale-[1.01] hover:bg-slate-800/60 hover:border-slate-600`}>
+
             {/* Header: Player & Team */}
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <h3 className="text-lg font-bold text-slate-100 leading-tight">{item.playerName}</h3>
                     <p className="text-xs text-slate-400 font-medium tracking-wider">{item.team} • {primaryType}</p>
                 </div>
-                {/* Edge Badge */}
-                {edgeType !== 'NONE' && (
-                    <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${edgeType === 'DISCREPANCY' ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30' : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                        }`}>
-                        {edgeType}
-                    </div>
-                )}
+                {/* Edge Badge + Sharp Agreement */}
+                <div className="flex flex-col items-end gap-1">
+                    {edgeType !== 'NONE' && (
+                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${edgeType === 'DISCREPANCY'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                            }`}>
+                            {edgeType}
+                        </div>
+                    )}
+                    {sharpAgreement !== undefined && sharpAgreement < 100 && (
+                        <div className={`text-[9px] px-1.5 py-0.5 rounded ${sharpAgreement >= 80 ? 'text-emerald-400' :
+                                sharpAgreement >= 50 ? 'text-yellow-400' : 'text-rose-400'
+                            }`}>
+                            {sharpAgreement}% consensus
+                        </div>
+                    )}
+                </div>
             </div>
 
             {/* PP vs Sharp Comparison */}
-            <div className="flex items-center gap-3 mb-4">
-                {/* PrizePicks Line */}
+            <div className="flex items-center gap-3 mb-3">
                 <div className="flex-1 bg-purple-950/30 rounded-lg p-2 text-center border border-purple-500/30">
                     <div className="text-[10px] text-purple-400 uppercase font-bold mb-1">PrizePicks</div>
                     <div className="text-2xl font-black text-white">{ppLine}</div>
                 </div>
-
-                {/* VS Arrow */}
                 <div className="text-slate-600 font-bold text-lg">→</div>
-
-                {/* Sharp Consensus */}
                 <div className="flex-1 bg-emerald-950/30 rounded-lg p-2 text-center border border-emerald-500/30">
-                    <div className="text-[10px] text-emerald-400 uppercase font-bold mb-1">Sharps</div>
-                    <div className="text-2xl font-black text-white">{sharpConsensus}</div>
+                    <div className="text-[10px] text-emerald-400 uppercase font-bold mb-1">Fair Value</div>
+                    <div className="text-2xl font-black text-white">{fairValue ?? sharpConsensus}</div>
                 </div>
             </div>
 
-            {/* Recommended Bet - Single Button */}
-            {recommendedSide ? (
+            {/* NEW: Acceptable Range Indicator */}
+            {recommendedSide && (maxAcceptableLine || minAcceptableLine) && (
+                <div className={`mb-3 p-2 rounded-lg text-xs ${isLineStillGood
+                        ? 'bg-emerald-950/30 border border-emerald-500/20 text-emerald-300'
+                        : 'bg-rose-950/30 border border-rose-500/20 text-rose-300'
+                    }`}>
+                    {recommendedSide === 'OVER' ? (
+                        <span>✓ Take OVER up to <strong>{maxAcceptableLine}</strong></span>
+                    ) : (
+                        <span>✓ Take UNDER down to <strong>{minAcceptableLine}</strong></span>
+                    )}
+                </div>
+            )}
+
+            {/* Recommended Bet Button */}
+            {recommendedSide && isLineStillGood ? (
                 <button
                     onClick={() => onAdd(recommendedSide)}
                     className={`w-full py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${recommendedSide === 'OVER'
-                        ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-900/30 hover:scale-[1.02]'
-                        : 'bg-gradient-to-r from-rose-600 to-pink-500 text-white shadow-lg shadow-rose-900/30 hover:scale-[1.02]'
+                            ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-900/30 hover:scale-[1.02]'
+                            : 'bg-gradient-to-r from-rose-600 to-pink-500 text-white shadow-lg shadow-rose-900/30 hover:scale-[1.02]'
                         }`}
                 >
                     <span className="text-lg">{recommendedSide === 'OVER' ? '📈' : '📉'}</span>
                     TAKE {recommendedSide} {ppLine}
                 </button>
+            ) : recommendedSide && !isLineStillGood ? (
+                <div className="w-full py-3 rounded-lg bg-slate-800 text-slate-500 text-sm text-center font-bold">
+                    ⚠️ Line Moved - No Longer Valid
+                </div>
             ) : (
                 <div className="text-center py-2 text-slate-600 text-xs">No clear edge detected</div>
             )}
@@ -268,7 +307,7 @@ const PropScout: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(today);
 
     // Convert props map to array, filter by sport and search, then sort by Edge Score
-    const propList = Object.values(props)
+    const propList = (Object.values(props) as PlayerPropItem[])
         .filter(p => {
             // Sport filter
             if (filter === 'NBA' && p.sport !== 'basketball_nba') return false;

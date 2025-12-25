@@ -78,6 +78,14 @@ export interface PlayerPropItem {
   // Auto-calculated recommendation
   recommendedSide?: 'OVER' | 'UNDER' | null;
 
+  // NEW: Line Value Metrics
+  fairValue: number | null;        // Sharp consensus (the "true" line)
+  maxAcceptableLine: number | null; // For OVER plays: don't take above this
+  minAcceptableLine: number | null; // For UNDER plays: don't take below this
+  edgeRemaining: number;           // How much edge is left at current line
+  sharpAgreement: number;          // 0-100% how much sharps agree with each other
+
+  targetLine?: number;
   // AI Context
   aiInsight?: AiInsight;
 }

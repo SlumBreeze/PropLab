@@ -1,5 +1,5 @@
 export const SPORTS_CONFIG: Record<string, { label: string; icon: string }> = {
-  basketball_nba: { label: 'NBA', icon: '�' },
+  basketball_nba: { label: 'NBA', icon: '🏀' },
   americanfootball_nfl: { label: 'NFL', icon: '🏈' },
 };
 
