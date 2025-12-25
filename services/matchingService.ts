@@ -13,6 +13,18 @@ const DFS_BOOKS = ['prizepicks', 'underdog_fantasy'];
 // Minimum edge threshold (in points) to consider a play
 const MIN_EDGE_THRESHOLD = 0.5;
 
+// Goblin/Demon Filters (Diff > X is ignored)
+const GOBLIN_THRESHOLDS: Record<string, number> = {
+    'player_points': 8,        // NBA points have higher variance
+    'player_rebounds': 4,
+    'player_assists': 3,
+    'player_threes': 2,
+    'player_pass_yds': 40,     // NFL passing has huge range
+    'player_rush_yds': 25,
+    'player_reception_yds': 20,
+    'player_receptions': 3,
+};
+
 // --------------------------------------------------------------------------------
 // UTILITIES
 // --------------------------------------------------------------------------------
@@ -143,13 +155,14 @@ const calculateEdge = (dfsLine: PropLine, sharps: PropLine[]): EdgeResult => {
     const diff = Math.abs(ppLine - sharpLine);
 
     // --- NEW: GOBLIN/DEMON FILTER ---
-    // If the difference is massive (> 5.0 points), it's likely an Alt Line (Goblin/Demon).
-    // These have terrible payouts and should not be treated as "EV Errors".
-    if (diff > 5.0) {
+    // If the difference is massive, it's likely an Alt Line (Goblin/Demon).
+    const threshold = GOBLIN_THRESHOLDS[dfsLine.market] || 5.0;
+
+    if (diff > threshold) {
         return {
             type: 'NONE',
             score: 0,
-            details: `Likely Alt Line (Diff ${diff}). Ignoring.`
+            details: `Likely Alt Line (Diff ${diff.toFixed(1)} > ${threshold}). Ignoring.`
         };
     }
     // --------------------------------

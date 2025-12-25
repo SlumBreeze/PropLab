@@ -341,8 +341,8 @@ const PropScout: React.FC = () => {
     const [selectedDate, setSelectedDate] = useState<string>(today);
 
     // Convert props map to array, filter by sport and search, then sort by Edge Score
-    const propList = (Object.values(props) as PlayerPropItem[])
-        .filter(p => {
+    const propList: PlayerPropItem[] = (Object.values(props) as PlayerPropItem[])
+        .filter((p: PlayerPropItem) => {
             // Sport filter
             if (filter === 'NBA' && p.sport !== 'basketball_nba') return false;
             if (filter === 'NFL' && p.sport !== 'americanfootball_nfl') return false;
@@ -352,7 +352,7 @@ const PropScout: React.FC = () => {
 
             return true;
         })
-        .sort((a, b) => b.edgeScore - a.edgeScore);
+        .sort((a: PlayerPropItem, b: PlayerPropItem) => b.edgeScore - a.edgeScore);
 
     const activeSlip = slips.find(s => s.id === activeSlipId);
 
