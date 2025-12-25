@@ -1,6 +1,3 @@
-// Core Regions for Data Fetching
-// 'us' = Sharp Books (Pinnacle, FanDuel, DraftKings)
-// 'us_dfs' = PrizePicks, Underdog
 export type Region = 'us' | 'us_dfs';
 
 // Supported Sports on The Odds API
@@ -30,15 +27,10 @@ export type PropMarketKey =
   | 'player_assists'
   | 'player_threes'
   | 'player_pass_tds'
-  | 'player_pass_yds'       // NFL Passing Yards (Odds API uses abbreviation)
-  | 'player_rush_yds'       // NFL Rushing Yards
-  | 'player_reception_yds'  // NFL Receiving Yards
-  | 'player_receptions'
-  // Legacy keys (keep for backwards compat if any data uses them)
-  | 'player_pass_yards'
-  | 'player_rush_yards'
-  | 'player_rec_yards'
-  ;
+  | 'player_pass_yds'
+  | 'player_rush_yds'
+  | 'player_reception_yds'
+  | 'player_receptions';
 
 // A single line from a bookmaker (The Odds API "Outcome")
 export interface PropLine {
@@ -46,7 +38,7 @@ export interface PropLine {
   bookmakerKey: string;  // "prizepicks", "pinnacle"
   market: PropMarketKey;
   name: string;          // Player Name (as returned by that book)
-  description?: string;  // Sometimes used for "Over" / "Under" depending on API structure
+  description?: string;  // Sometimes used for "Over" / "Under"
   label: 'Over' | 'Under';
   point: number;         // The line (e.g., 22.5)
   price: number;         // American odds (e.g., -115)
@@ -91,8 +83,8 @@ export interface PlayerPropItem {
 }
 
 export interface AiInsight {
-  correlation?: string; // "High positive correlation with [Teammate QB]"
-  injuryNews?: string;  // "Primary defender [Name] is OUT"
+  correlation?: string;
+  injuryNews?: string;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   lastUpdated: number;
 }
@@ -109,42 +101,46 @@ export interface Slip {
   id: string;
   selections: SlipSelection[];
   type: 'POWER' | 'FLEX';
-
-  // 2, 3, 4, 5, 6
   legCount: number;
-
-  // e.g. 3.0 for 2-man Power, 10.0 for 4-flex
   payoutMultiplier: number;
-
   status: 'DRAFT' | 'PLACED';
   createdAt: number;
 }
 
 // ------------------------------------------------------------------
-// APP STATE
+// SLIP ANALYSIS
 // ------------------------------------------------------------------
 
-export interface ScanResult {
-  lastUpdated: string;
-  propsFound: number;
-  edgesFound: number;
+export interface SlipAnalysisResult {
+  grade: string;
+  analysis: string;
+  correlationScore: number;
+  recommendation: 'Submit' | 'Warning';
 }
 
+// ------------------------------------------------------------------
+// APP STATE (matches useGameContext)
+// ------------------------------------------------------------------
+
 export interface PropLabState {
-  // Raw Data Cache
+  // Data
   games: GameEvent[];
-  props: Record<string, PlayerPropItem>; // Map by ID
-
-  // User Slips
+  props: Record<string, PlayerPropItem>;
   slips: Slip[];
-  activeSlipId?: string; // Currently being built
+  activeSlipId?: string;
 
-  // Settings
+  // UI State
   displayMode: 'PROPS' | 'SLIPS';
   minEdgeScore: number;
 
-  // Methods
+  // Analysis State
+  slipAnalysis: SlipAnalysisResult | null;
+  analysisLoading: boolean;
+
+  // Actions
   addSelectionToSlip: (prop: PlayerPropItem, side: 'OVER' | 'UNDER') => void;
   removeSelectionFromSlip: (slipId: string, propId: string) => void;
   createSlip: (type: 'POWER' | 'FLEX') => void;
+  scanMarket: (dateFilter?: string) => Promise<void>;
+  analyzeCurrentSlip: () => Promise<void>;
 }

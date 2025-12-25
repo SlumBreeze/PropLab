@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
-import { PlayerPropItem, Slip, SlipSelection } from '../types';
+import { PlayerPropItem, Slip, SlipAnalysisResult } from '../types';
 
 // --------------------------------------------------------------------------------
 // UTILS & COMPONENTS
@@ -105,11 +105,10 @@ const PropCard: React.FC<{
 const SlipSidebar: React.FC<{
     slip: Slip | undefined;
     onRemove: (propId: string) => void;
-    onCreate: () => void;
     onAnalyze: () => void;
-    analysisResult: any;
+    analysisResult: SlipAnalysisResult | null;
     isAnalysisLoading: boolean;
-}> = ({ slip, onRemove, onCreate, onAnalyze, analysisResult, isAnalysisLoading }) => {
+}> = ({ slip, onRemove, onAnalyze, analysisResult, isAnalysisLoading }) => {
 
     if (!slip || slip.selections.length === 0) {
         return (
@@ -125,7 +124,7 @@ const SlipSidebar: React.FC<{
         );
     }
 
-    // Payout Logic (Simplified)
+    // Payout Logic
     const getMultiplier = (count: number, type: 'POWER' | 'FLEX') => {
         if (type === 'POWER') {
             return count === 2 ? 3 : count === 3 ? 5 : count === 4 ? 10 : 0;
@@ -284,7 +283,7 @@ const PropScout: React.FC = () => {
 
     const activeSlip = slips.find(s => s.id === activeSlipId);
 
-    // Manual Scan Handler - now passes selected date
+    // Manual Scan Handler
     const handleScan = async () => {
         setIsScanning(true);
         await scanMarket(selectedDate);
@@ -292,7 +291,7 @@ const PropScout: React.FC = () => {
     };
 
     return (
-        <div className="h-[calc(100vh-64px)] w-full bg-slate-950 text-slate-200 overflow-hidden flex">
+        <div className="h-screen w-full bg-slate-950 text-slate-200 overflow-hidden flex">
 
             {/* Left Main Content */}
             <div className="flex-1 flex flex-col overflow-hidden relative">
@@ -353,7 +352,7 @@ const PropScout: React.FC = () => {
                             {['ALL', 'NBA', 'NFL'].map(f => (
                                 <button
                                     key={f}
-                                    onClick={() => setFilter(f as any)}
+                                    onClick={() => setFilter(f as 'ALL' | 'NBA' | 'NFL')}
                                     className={`px-4 py-1.5 rounded-md text-xs font-bold transition-all ${filter === f ? 'bg-slate-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
                                         }`}
                                 >
@@ -390,6 +389,11 @@ const PropScout: React.FC = () => {
                             <div className="text-4xl mb-4">🔍</div>
                             <p>No props found. Click "Scan Market" to start.</p>
                         </div>
+                    ) : isScanning ? (
+                        <div className="flex flex-col items-center justify-center h-64">
+                            <div className="animate-spin text-4xl mb-4">⚡</div>
+                            <p className="text-slate-400">Scanning markets...</p>
+                        </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                             {propList.map(prop => (
@@ -409,7 +413,6 @@ const PropScout: React.FC = () => {
                 <SlipSidebar
                     slip={activeSlip}
                     onRemove={(pid) => activeSlipId && removeSelectionFromSlip(activeSlipId, pid)}
-                    onCreate={() => { }}
                     onAnalyze={analyzeCurrentSlip}
                     analysisResult={slipAnalysis}
                     isAnalysisLoading={analysisLoading}

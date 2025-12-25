@@ -22,8 +22,11 @@ export const normalizeName = (name: string): string => {
         .trim();
 };
 
-const getConsensusLine = (lines: PropLine[]): number => {
-    if (lines.length === 0) return 0;
+/**
+ * Returns null if no lines, preventing false edge detection
+ */
+const getConsensusLine = (lines: PropLine[]): number | null => {
+    if (lines.length === 0) return null;
     const sum = lines.reduce((acc, l) => acc + l.point, 0);
     return Math.round((sum / lines.length) * 10) / 10;
 };
@@ -41,10 +44,6 @@ export const matchAndFindEdges = (
     sport: SportKey,
     market: PropMarketKey
 ): PlayerPropItem[] => {
-    // Separate DFS and Sharp lines
-    const dfsLines = allLines.filter(l => DFS_BOOKS.includes(l.bookmakerKey));
-    const sharpLines = allLines.filter(l => !DFS_BOOKS.includes(l.bookmakerKey));
-
     // Group by normalized player name
     const playerGroups = new Map<string, { dfs: PropLine[], sharps: PropLine[] }>();
 
@@ -74,6 +73,7 @@ export const matchAndFindEdges = (
         const dfsLine = dfsOvers[0]; // Primary DFS line (PrizePicks preferred)
         const ppLine = dfsOvers.find(l => l.bookmakerKey === 'prizepicks') || dfsLine;
 
+        // NULL-SAFE: Skip if no sharp data to compare against
         const sharpConsensus = getConsensusLine(sharpOvers);
         const playerName = dfsLine.name;
 
@@ -83,7 +83,8 @@ export const matchAndFindEdges = (
         let edgeDetails = '';
         let recommendedSide: 'OVER' | 'UNDER' | null = null;
 
-        if (sharpOvers.length > 0 && ppLine) {
+        // Only calculate edge if we have both PP line AND sharp consensus
+        if (sharpConsensus !== null && ppLine) {
             const diff = sharpConsensus - ppLine.point;
 
             // Positive diff = Sharps have HIGHER line = PP is lower = OVER is the play
@@ -100,6 +101,9 @@ export const matchAndFindEdges = (
                 recommendedSide = diff > 0 ? 'OVER' : 'UNDER';
                 edgeDetails = `${Math.abs(diff).toFixed(1)} pt variance → lean ${recommendedSide}`;
             }
+        } else if (ppLine) {
+            // Have PP line but no sharp data
+            edgeDetails = 'No sharp lines available for comparison';
         }
 
         results.push({
@@ -118,8 +122,6 @@ export const matchAndFindEdges = (
             edgeType,
             edgeScore,
             edgeDetails,
-
-            // NEW: Recommended side based on edge calculation
             recommendedSide,
 
             aiInsight: undefined

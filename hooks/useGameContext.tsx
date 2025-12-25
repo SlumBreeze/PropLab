@@ -6,20 +6,17 @@ import {
   SlipSelection,
   GameEvent,
   PropMarketKey,
-  Region
+  SlipAnalysisResult
 } from '../types';
-import { supabase } from '../services/supabaseClient';
 import {
   fetchUpcomingEvents,
   fetchPropsForGame,
   getSupportedMarkets
 } from '../services/oddsService';
 import { matchAndFindEdges } from '../services/matchingService';
-import { analyzeSlip, SlipAnalysisResult } from '../services/geminiService';
+import { analyzeSlip } from '../services/geminiService';
 
 const GameContext = createContext<PropLabState | undefined>(undefined);
-
-const getTodayKey = () => new Date().toISOString().split('T')[0];
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // --------------------------------------------------------
@@ -33,11 +30,12 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [displayMode, setDisplayMode] = useState<'PROPS' | 'SLIPS'>('PROPS');
   const [minEdgeScore, setMinEdgeScore] = useState<number>(75);
 
-  const [isLoading, setIsLoading] = useState(false);
-
   // Analysis State
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [slipAnalysis, setSlipAnalysis] = useState<SlipAnalysisResult | null>(null);
+
+  // Error State (for UI feedback)
+  const [lastError, setLastError] = useState<string | null>(null);
 
   // --------------------------------------------------------
   // METHODS
@@ -48,15 +46,13 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
    */
   useEffect(() => {
     const loadEvents = async () => {
-      setIsLoading(true);
       try {
-        // For now, hardcode sport or iterate. Let's start with NBA.
         const nbaGames = await fetchUpcomingEvents('basketball_nba');
         setGames(prev => [...prev.filter(g => g.sport_key !== 'basketball_nba'), ...nbaGames]);
+        setLastError(null);
       } catch (e) {
         console.error("Failed to load events", e);
-      } finally {
-        setIsLoading(false);
+        setLastError("Failed to load games. Check your connection.");
       }
     };
     loadEvents();
@@ -78,54 +74,66 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
         ]);
         currentGames = [...nba, ...nfl];
         setGames(currentGames);
+        setLastError(null);
       } catch (e) {
         console.error("Failed to fetch events during scan", e);
+        setLastError("Failed to fetch games. Try again.");
         return;
       }
     }
 
-    setIsLoading(true);
-    console.log(`[Scan] Starting scan...`);
+    console.log(`[Scan] Starting scan for ${currentGames.length} games...`);
 
     try {
       const newProps: Record<string, PlayerPropItem> = {};
 
-      await Promise.all(currentGames.map(async (game) => {
-        const markets = getSupportedMarkets(game.sport_key);
-        if (markets.length === 0) return;
+      // Process games in batches to avoid overwhelming the API
+      const BATCH_SIZE = 3;
+      for (let i = 0; i < currentGames.length; i += BATCH_SIZE) {
+        const batch = currentGames.slice(i, i + BATCH_SIZE);
 
-        try {
-          const allLines = await fetchPropsForGame(game.sport_key, game.id, markets, true);
+        await Promise.all(batch.map(async (game) => {
+          const markets = getSupportedMarkets(game.sport_key);
+          if (markets.length === 0) return;
 
-          console.log(`[Debug] Game ${game.away_team} vs ${game.home_team}: Raw Lines Found = ${allLines.length}`);
+          try {
+            const allLines = await fetchPropsForGame(game.sport_key, game.id, markets, true);
 
-          if (allLines.length === 0) {
-            console.warn(`[Debug] No lines from API for ${game.id}`);
-            return;
+            console.log(`[Debug] Game ${game.away_team} vs ${game.home_team}: Raw Lines Found = ${allLines.length}`);
+
+            if (allLines.length === 0) {
+              console.warn(`[Debug] No lines from API for ${game.id}`);
+              return;
+            }
+
+            // Group all lines by player/market
+            const uniqueMarkets = Array.from(new Set(allLines.map(l => l.market)));
+            for (const mkt of uniqueMarkets) {
+              const marketLines = allLines.filter(l => l.market === mkt);
+              const grouped = matchAndFindEdges(marketLines, game.id, game.sport_key, mkt);
+              grouped.forEach(item => {
+                item.team = `${game.away_team} @ ${game.home_team}`;
+                newProps[item.id] = item;
+              });
+            }
+          } catch (err) {
+            console.warn(`[Scan] Failed game ${game.id}`, err);
           }
+        }));
 
-          // PIVOT: Sharp-only mode - group all lines by player/market
-          const uniqueMarkets = Array.from(new Set(allLines.map(l => l.market)));
-          for (const mkt of uniqueMarkets) {
-            const marketLines = allLines.filter(l => l.market === mkt);
-            const grouped = matchAndFindEdges(marketLines, game.id, game.sport_key, mkt);
-            grouped.forEach(item => {
-              item.team = `${game.away_team} @ ${game.home_team}`;
-              newProps[item.id] = item;
-            });
-          }
-        } catch (err) {
-          console.warn(`[Scan] Failed game ${game.id}`, err);
+        // Small delay between batches to be nice to the API
+        if (i + BATCH_SIZE < currentGames.length) {
+          await new Promise(r => setTimeout(r, 200));
         }
-      }));
+      }
 
       console.log(`[Scan] Complete. Found ${Object.keys(newProps).length} props.`);
       setProps(prev => ({ ...prev, ...newProps }));
+      setLastError(null);
 
     } catch (err) {
       console.error("[Scan] Error", err);
-    } finally {
-      setIsLoading(false);
+      setLastError("Scan failed. Please try again.");
     }
   };
 
@@ -139,26 +147,44 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: crypto.randomUUID(),
       selections: [],
       type,
-      legCount: type === 'POWER' ? 2 : 3, // Defaults
+      legCount: type === 'POWER' ? 2 : 3,
       payoutMultiplier: type === 'POWER' ? 3.0 : 2.25,
       status: 'DRAFT',
       createdAt: Date.now()
     };
     setSlips(prev => [...prev, newSlip]);
     setActiveSlipId(newSlip.id);
-    setSlipAnalysis(null); // Reset analysis
+    setSlipAnalysis(null);
   };
 
   const addSelectionToSlip = (prop: PlayerPropItem, side: 'OVER' | 'UNDER') => {
+    // Auto-create slip if none exists
     if (!activeSlipId) {
-      createSlip('POWER');
+      const newSlip: Slip = {
+        id: crypto.randomUUID(),
+        selections: [],
+        type: 'POWER',
+        legCount: 2,
+        payoutMultiplier: 3.0,
+        status: 'DRAFT',
+        createdAt: Date.now()
+      };
+      setSlips([newSlip]);
+      setActiveSlipId(newSlip.id);
+
+      // Add selection to the new slip
+      const newSelection: SlipSelection = { ...prop, selectedSide: side };
+      setSlips([{ ...newSlip, selections: [newSelection] }]);
+      setSlipAnalysis(null);
+      return;
     }
 
     setSlips(prev => prev.map(slip => {
-      if (slip.id === activeSlipId || (activeSlipId === undefined && slip.status === 'DRAFT')) {
+      if (slip.id === activeSlipId) {
+        // Don't add duplicates
         if (slip.selections.some(s => s.id === prop.id)) return slip;
         const newSelection: SlipSelection = { ...prop, selectedSide: side };
-        setSlipAnalysis(null); // Invalidate analysis on change
+        setSlipAnalysis(null);
         return { ...slip, selections: [...slip.selections, newSelection] };
       }
       return slip;
@@ -166,7 +192,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const removeSelectionFromSlip = (slipId: string, propId: string) => {
-    setSlipAnalysis(null); // Invalidate analysis on change
+    setSlipAnalysis(null);
     setSlips(prev => prev.map(slip => {
       if (slip.id === slipId) {
         return { ...slip, selections: slip.selections.filter(s => s.id !== propId) };
@@ -178,7 +204,10 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const analyzeCurrentSlip = async () => {
     if (!activeSlipId) return;
     const slip = slips.find(s => s.id === activeSlipId);
-    if (!slip) return;
+    if (!slip || slip.selections.length < 2) {
+      console.warn("Need at least 2 selections to analyze");
+      return;
+    }
 
     setAnalysisLoading(true);
     try {
@@ -186,33 +215,44 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSlipAnalysis(result);
     } catch (e) {
       console.error("Analysis failed", e);
+      setSlipAnalysis({
+        grade: '?',
+        analysis: 'Analysis failed. Please try again.',
+        correlationScore: 0,
+        recommendation: 'Warning'
+      });
     } finally {
       setAnalysisLoading(false);
     }
   };
 
+  // --------------------------------------------------------
+  // CONTEXT VALUE
+  // --------------------------------------------------------
+  const contextValue: PropLabState = {
+    games,
+    props,
+    slips,
+    activeSlipId,
+    displayMode,
+    minEdgeScore,
+    slipAnalysis,
+    analysisLoading,
+    addSelectionToSlip,
+    removeSelectionFromSlip,
+    createSlip,
+    scanMarket,
+    analyzeCurrentSlip,
+  };
+
   return (
-    <GameContext.Provider value={{
-      games,
-      props,
-      slips,
-      activeSlipId,
-      displayMode,
-      minEdgeScore,
-      addSelectionToSlip,
-      removeSelectionFromSlip,
-      createSlip,
-      scanMarket,
-      analyzeCurrentSlip,
-      slipAnalysis,
-      analysisLoading
-    }}>
+    <GameContext.Provider value={contextValue}>
       {children}
     </GameContext.Provider>
   );
 };
 
-export const useGameContext = () => {
+export const useGameContext = (): PropLabState => {
   const context = useContext(GameContext);
   if (!context) throw new Error('useGameContext must be used within GameProvider');
   return context;

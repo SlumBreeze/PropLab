@@ -1,0 +1,6 @@
+pages/PropScout.tsx(275,39): error TS2339: Property 'sport' does not exist on type 'unknown'.
+pages/PropScout.tsx(276,39): error TS2339: Property 'sport' does not exist on type 'unknown'.
+pages/PropScout.tsx(279,35): error TS2339: Property 'playerName' does not exist on type 'unknown'.
+pages/PropScout.tsx(283,27): error TS2339: Property 'edgeScore' does not exist on type 'unknown'.
+pages/PropScout.tsx(283,41): error TS2339: Property 'edgeScore' does not exist on type 'unknown'.
+pages/PropScout.tsx(397,47): error TS2339: Property 'id' does not exist on type 'unknown'.
