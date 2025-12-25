@@ -37,6 +37,9 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Error State (for UI feedback)
   const [lastError, setLastError] = useState<string | null>(null);
 
+  // Correlation Highlighting
+  const [highlightTeam, setHighlightTeam] = useState<string | null>(null);
+
   // --------------------------------------------------------
   // METHODS
   // --------------------------------------------------------
@@ -171,16 +174,15 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
       setSlips([newSlip]);
       setActiveSlipId(newSlip.id);
-
-      // Add selection to the new slip
-      const newSelection: SlipSelection = { ...prop, selectedSide: side };
-      setSlips([{ ...newSlip, selections: [newSelection] }]);
-      setSlipAnalysis(null);
-      return;
     }
 
+    // --- NEW: TRIGGER HIGHLIGHT ---
+    // When a user picks a player, highlight their team to encourage stacking
+    setHighlightTeam(prop.team);
+    // ------------------------------
+
     setSlips(prev => prev.map(slip => {
-      if (slip.id === activeSlipId) {
+      if (slip.id === activeSlipId || (activeSlipId === undefined && slip.status === 'DRAFT')) {
         // Don't add duplicates
         if (slip.selections.some(s => s.id === prop.id)) return slip;
         const newSelection: SlipSelection = { ...prop, selectedSide: side };
@@ -238,6 +240,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     minEdgeScore,
     slipAnalysis,
     analysisLoading,
+    highlightTeam,
     addSelectionToSlip,
     removeSelectionFromSlip,
     createSlip,

@@ -121,6 +121,72 @@ const generateGuidance = (
     return `Edge: ${currentEdge.toFixed(1)} pts vs Sharp ${sharpConsensus}`;
 };
 
+interface EdgeResult {
+    type: 'DISCREPANCY' | 'JUICE' | 'NONE';
+    score: number;
+    details: string;
+}
+
+/**
+ * Calculates the EV/Edge based on Line Discrepancy or Juice.
+ */
+const calculateEdge = (dfsLine: PropLine, sharps: PropLine[]): EdgeResult => {
+    // Pinnacle is the gold standard, fall back to others
+    const sharp = sharps.find(s => s.bookmakerKey === 'pinnacle') || sharps[0];
+
+    if (!sharp) return { type: 'NONE', score: 0, details: "No sharp consensus" };
+
+    const ppLine = dfsLine.point;
+    const sharpLine = sharp.point;
+    const sharpOdds = sharp.price;
+
+    const diff = Math.abs(ppLine - sharpLine);
+
+    // --- NEW: GOBLIN/DEMON FILTER ---
+    // If the difference is massive (> 5.0 points), it's likely an Alt Line (Goblin/Demon).
+    // These have terrible payouts and should not be treated as "EV Errors".
+    if (diff > 5.0) {
+        return {
+            type: 'NONE',
+            score: 0,
+            details: `Likely Alt Line (Diff ${diff}). Ignoring.`
+        };
+    }
+    // --------------------------------
+
+    // 1. DISCREPANCY EDGE (Lines are different)
+    if (diff >= 1.0) {
+        return {
+            type: 'DISCREPANCY',
+            score: 90 + diff,
+            details: `Discrepancy: PP ${ppLine} vs ${sharp.bookmaker} ${sharpLine}`
+        };
+    }
+
+    if (diff > 0 && diff < 1.0) {
+        return {
+            type: 'DISCREPANCY',
+            score: 80,
+            details: `Small Discrepancy: PP ${ppLine} vs ${sharp.bookmaker} ${sharpLine}`
+        };
+    }
+
+    // 2. JUICE EDGE (Lines are same, but Sharp is heavily juiced)
+    if (diff === 0) {
+        const isHeavyJuice = Math.abs(sharpOdds) >= 135;
+
+        if (isHeavyJuice) {
+            return {
+                type: 'JUICE',
+                score: 75 + (Math.abs(sharpOdds) - 130) / 2,
+                details: `Juice Edge: ${sharp.bookmaker} has ${sharpOdds}`
+            };
+        }
+    }
+
+    return { type: 'NONE', score: 0, details: 'No significant edge' };
+};
+
 // --------------------------------------------------------------------------------
 // MAIN MATCHING FUNCTION
 // --------------------------------------------------------------------------------
@@ -180,23 +246,28 @@ export const matchAndFindEdges = (
         let minAcceptableLine: number | null = null;
         let edgeRemaining = 0;
 
-        // Only calculate edge if we have both PP line AND sharp consensus
-        if (sharpConsensus !== null && ppLine) {
-            const diff = sharpConsensus - ppLine.point;
+        // Use new calculateEdge helper for core edge logic
+        if (sharpOvers.length > 0 && ppLine) {
+            const edgeResult = calculateEdge(ppLine, sharpOvers);
+            edgeType = edgeResult.type;
+            edgeScore = edgeResult.score;
+            edgeDetails = edgeResult.details; // Start with basic details
 
-            if (Math.abs(diff) >= 1.5) {
-                edgeType = 'DISCREPANCY';
-                edgeScore = Math.min(100, Math.round(Math.abs(diff) * 15));
+            // If we have an edge, refine recommended side and score
+            if (edgeType !== 'NONE') {
+                const diff = (sharpConsensus || 0) - ppLine.point;
                 recommendedSide = diff > 0 ? 'OVER' : 'UNDER';
 
                 // Boost score if sharps agree
-                edgeScore = Math.min(100, edgeScore + Math.round(sharpAgreement / 10));
-
-            } else if (Math.abs(diff) >= 0.5) {
-                edgeType = 'JUICE';
-                edgeScore = Math.min(60, Math.round(Math.abs(diff) * 20));
-                recommendedSide = diff > 0 ? 'OVER' : 'UNDER';
+                if (edgeType === 'DISCREPANCY') {
+                    edgeScore = Math.min(100, edgeScore + Math.round(sharpAgreement / 10));
+                }
             }
+        }
+
+        // Only calculate acceptable ranges if we have sharp consensus
+        if (sharpConsensus !== null && ppLine) {
+            const diff = sharpConsensus - ppLine.point;
 
             // Calculate acceptable ranges
             const ranges = calculateAcceptableRange(sharpConsensus, recommendedSide);
@@ -206,14 +277,16 @@ export const matchAndFindEdges = (
             // Calculate remaining edge
             edgeRemaining = Math.abs(diff);
 
-            // Generate detailed guidance
-            edgeDetails = generateGuidance(
-                ppLine.point,
-                sharpConsensus,
-                recommendedSide,
-                maxAcceptableLine,
-                minAcceptableLine
-            );
+            // Generate detailed guidance (Override basic details if we have specific guidance)
+            if (recommendedSide) {
+                edgeDetails = generateGuidance(
+                    ppLine.point,
+                    sharpConsensus,
+                    recommendedSide,
+                    maxAcceptableLine,
+                    minAcceptableLine
+                );
+            }
 
         } else if (ppLine) {
             edgeDetails = 'No sharp lines available for comparison';

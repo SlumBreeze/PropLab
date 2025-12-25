@@ -14,8 +14,9 @@ const formatOdds = (odds: number) => (odds > 0 ? `+${odds}` : `${odds}`);
  */
 const PropCard: React.FC<{
     item: PlayerPropItem;
-    onAdd: (side: 'OVER' | 'UNDER') => void
-}> = ({ item, onAdd }) => {
+    onAdd: (side: 'OVER' | 'UNDER') => void;
+    isHighlighted?: boolean;
+}> = ({ item, onAdd, isHighlighted }) => {
     const {
         prizePicksLine,
         sharpLines,
@@ -53,7 +54,9 @@ const PropCard: React.FC<{
         : (minAcceptableLine === null || ppLine >= minAcceptableLine);
 
     return (
-        <div className={`relative group bg-slate-900/40 backdrop-blur-sm border ${edgeColor} ${glowEffect} rounded-xl p-4 transition-all duration-300 hover:scale-[1.01] hover:bg-slate-800/60 hover:border-slate-600`}>
+        <div className={`relative group backdrop-blur-sm border transition-all duration-300 hover:scale-[1.01] p-4 rounded-xl
+            ${isHighlighted ? 'bg-indigo-900/30 ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'bg-slate-900/40'}
+            ${edgeColor} ${glowEffect}`}>
 
             {/* Header: Player & Team */}
             <div className="flex justify-between items-start mb-3">
@@ -65,15 +68,15 @@ const PropCard: React.FC<{
                 <div className="flex flex-col items-end gap-1">
                     {edgeType !== 'NONE' && (
                         <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${edgeType === 'DISCREPANCY'
-                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                                : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
                             }`}>
                             {edgeType}
                         </div>
                     )}
                     {sharpAgreement !== undefined && sharpAgreement < 100 && (
                         <div className={`text-[9px] px-1.5 py-0.5 rounded ${sharpAgreement >= 80 ? 'text-emerald-400' :
-                                sharpAgreement >= 50 ? 'text-yellow-400' : 'text-rose-400'
+                            sharpAgreement >= 50 ? 'text-yellow-400' : 'text-rose-400'
                             }`}>
                             {sharpAgreement}% consensus
                         </div>
@@ -97,8 +100,8 @@ const PropCard: React.FC<{
             {/* NEW: Acceptable Range Indicator */}
             {recommendedSide && (maxAcceptableLine || minAcceptableLine) && (
                 <div className={`mb-3 p-2 rounded-lg text-xs ${isLineStillGood
-                        ? 'bg-emerald-950/30 border border-emerald-500/20 text-emerald-300'
-                        : 'bg-rose-950/30 border border-rose-500/20 text-rose-300'
+                    ? 'bg-emerald-950/30 border border-emerald-500/20 text-emerald-300'
+                    : 'bg-rose-950/30 border border-rose-500/20 text-rose-300'
                     }`}>
                     {recommendedSide === 'OVER' ? (
                         <span>✓ Take OVER up to <strong>{maxAcceptableLine}</strong></span>
@@ -113,8 +116,8 @@ const PropCard: React.FC<{
                 <button
                     onClick={() => onAdd(recommendedSide)}
                     className={`w-full py-3 rounded-lg font-bold text-sm transition-all flex items-center justify-center gap-2 ${recommendedSide === 'OVER'
-                            ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-900/30 hover:scale-[1.02]'
-                            : 'bg-gradient-to-r from-rose-600 to-pink-500 text-white shadow-lg shadow-rose-900/30 hover:scale-[1.02]'
+                        ? 'bg-gradient-to-r from-emerald-600 to-teal-500 text-white shadow-lg shadow-emerald-900/30 hover:scale-[1.02]'
+                        : 'bg-gradient-to-r from-rose-600 to-pink-500 text-white shadow-lg shadow-rose-900/30 hover:scale-[1.02]'
                         }`}
                 >
                     <span className="text-lg">{recommendedSide === 'OVER' ? '📈' : '📉'}</span>
@@ -163,7 +166,7 @@ const SlipSidebar: React.FC<{
         );
     }
 
-    // Payout Logic
+    // Payout Logic (Simplified)
     const getMultiplier = (count: number, type: 'POWER' | 'FLEX') => {
         if (type === 'POWER') {
             return count === 2 ? 3 : count === 3 ? 5 : count === 4 ? 10 : 0;
@@ -171,7 +174,23 @@ const SlipSidebar: React.FC<{
         return count === 3 ? 2.25 : count === 4 ? 5 : count === 5 ? 10 : count === 6 ? 25 : 0;
     };
 
+    // --- NEW: SLIP OPTIMIZER LOGIC ---
+    // Based on "How to Beat PrizePicks With Math"
+    const getImpliedOdds = (count: number, type: 'POWER' | 'FLEX') => {
+        if (count === 2 && type === 'POWER') return -137; // Acceptable for Correlation
+        if (count === 3 && type === 'POWER') return -141; // BAD
+        if (count === 3 && type === 'FLEX') return -145;  // TERRIBLE
+        if (count === 4 && type === 'POWER') return -128; // OK
+        if (count === 4 && type === 'FLEX') return -130;  // MEH
+        if (count === 5 && type === 'FLEX') return -119;  // GOLDEN STANDARD
+        if (count === 6 && type === 'FLEX') return -118;  // BEST
+        return 0;
+    };
+
     const multiplier = getMultiplier(slip.selections.length, slip.type);
+    const impliedOdds = getImpliedOdds(slip.selections.length, slip.type);
+    const isOptimal = impliedOdds !== 0 && impliedOdds > -120; // Green if -119 or better
+    // ---------------------------------
 
     return (
         <div className="h-full flex flex-col border-l border-white/10 bg-slate-950/80 backdrop-blur-xl">
@@ -248,6 +267,20 @@ const SlipSidebar: React.FC<{
 
             {/* Footer / Payout */}
             <div className="p-4 bg-slate-900 border-t border-white/5">
+
+                {/* --- NEW: MATH WARNING BANNER --- */}
+                {impliedOdds !== 0 && (
+                    <div className={`mb-3 p-2 rounded text-[10px] text-center font-bold border ${isOptimal
+                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
+                        : 'bg-orange-500/10 text-orange-400 border-orange-500/30'
+                        }`}>
+                        {isOptimal
+                            ? "⚡ MATHEMATICALLY OPTIMAL SLIP (-119 Odds)"
+                            : `⚠️ SUB-OPTIMAL SLIP (${impliedOdds} Odds). Try 5-Flex.`}
+                    </div>
+                )}
+                {/* -------------------------------- */}
+
                 {/* ANALYZE BUTTON */}
                 <button
                     onClick={onAnalyze}
@@ -294,7 +327,8 @@ const PropScout: React.FC = () => {
         scanMarket,
         analyzeCurrentSlip,
         slipAnalysis,
-        analysisLoading
+        analysisLoading,
+        highlightTeam // <--- Add this to destructuring from useGameContext
     } = useGameContext();
 
     const [filter, setFilter] = useState<'ALL' | 'NBA' | 'NFL'>('ALL');
@@ -440,6 +474,7 @@ const PropScout: React.FC = () => {
                                     key={prop.id}
                                     item={prop}
                                     onAdd={(side) => addSelectionToSlip(prop, side)}
+                                    isHighlighted={highlightTeam === prop.team} // <--- Pass the check
                                 />
                             ))}
                         </div>

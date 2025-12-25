@@ -144,6 +144,7 @@ export interface PropLabState {
   // Analysis State
   slipAnalysis: SlipAnalysisResult | null;
   analysisLoading: boolean;
+  highlightTeam?: string | null;
 
   // Actions
   addSelectionToSlip: (prop: PlayerPropItem, side: 'OVER' | 'UNDER') => void;
