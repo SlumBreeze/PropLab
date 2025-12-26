@@ -101,14 +101,11 @@ export const fetchUpcomingEvents = async (
     let url = `${BASE_URL}/${sport}/events?apiKey=${API_KEY}`;
 
     // If date filter provided, add time range
-    // IMPORTANT: Use current time as start (API only returns games that haven't commenced)
-    // and extend to end of NEXT day to handle timezone edge cases
+    // Format must be exactly YYYY-MM-DDTHH:MM:SSZ (no milliseconds)
     if (dateFilter) {
-      const now = new Date().toISOString();
-      const nextDay = new Date(dateFilter);
-      nextDay.setDate(nextDay.getDate() + 1);
-      const endOfNextDay = `${nextDay.toISOString().split('T')[0]}T23:59:59Z`;
-      url += `&commenceTimeFrom=${now}&commenceTimeTo=${endOfNextDay}`;
+      const startOfDay = `${dateFilter}T00:00:00Z`;
+      const endOfDay = `${dateFilter}T23:59:59Z`;
+      url += `&commenceTimeFrom=${startOfDay}&commenceTimeTo=${endOfDay}`;
     }
 
     console.log(`[OddsService] 📡 Events URL: ${url.replace(API_KEY, 'API_KEY_HIDDEN')}`);
