@@ -1,3 +1,4 @@
+
 export type Region = 'us' | 'us_dfs';
 
 // Supported Sports on The Odds API

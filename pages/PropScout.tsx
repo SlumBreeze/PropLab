@@ -380,13 +380,21 @@ const PropScout: React.FC = () => {
     const [isScanning, setIsScanning] = useState(false);
     const [searchQuery, setSearchQuery] = useState('');
 
-    // Date Selector State
+    // Calendar Date Picker State
     const today = new Date().toISOString().split('T')[0];
-    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     const [selectedDate, setSelectedDate] = useState<string>(today);
 
+    // Format date for display
+    const formatDateDisplay = (dateStr: string): string => {
+        const date = new Date(dateStr + 'T00:00:00');
+        return date.toLocaleDateString('en-US', {
+            weekday: 'short',
+            month: 'short',
+            day: 'numeric'
+        });
+    };
+
     // Convert props map to array, filter by sport and search, then sort by Edge Score
-    // FIXED: Explicit type annotations for TypeScript
     const propList: PlayerPropItem[] = (Object.values(props) as PlayerPropItem[])
         .filter((p: PlayerPropItem) => {
             // Sport filter
@@ -405,9 +413,13 @@ const PropScout: React.FC = () => {
     // Manual Scan Handler
     const handleScan = async () => {
         setIsScanning(true);
+        console.log(`[PropScout] 🔍 Scanning for date: ${selectedDate}`);
         await scanMarket(selectedDate);
         setIsScanning(false);
     };
+
+    // Count props with edge
+    const propsWithEdge = propList.filter(p => p.edgeType !== 'NONE').length;
 
     return (
         <div className="h-screen w-full bg-slate-950 text-slate-200 overflow-hidden flex">
@@ -428,22 +440,20 @@ const PropScout: React.FC = () => {
                     </div>
 
                     <div className="flex items-center gap-4">
-                        {/* DATE SELECTOR */}
-                        <div className="flex bg-slate-900/80 p-1 rounded-lg border border-slate-800">
-                            <button
-                                onClick={() => setSelectedDate(today)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${selectedDate === today ? 'bg-indigo-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                                    }`}
-                            >
-                                Today
-                            </button>
-                            <button
-                                onClick={() => setSelectedDate(tomorrow)}
-                                className={`px-3 py-1.5 rounded-md text-xs font-bold transition-all ${selectedDate === tomorrow ? 'bg-indigo-700 text-white shadow-sm' : 'text-slate-500 hover:text-slate-300'
-                                    }`}
-                            >
-                                Tomorrow
-                            </button>
+                        {/* CALENDAR DATE PICKER */}
+                        <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-2 rounded-lg border border-slate-800">
+                            <span className="text-lg">📅</span>
+                            <input
+                                type="date"
+                                value={selectedDate}
+                                onChange={(e) => setSelectedDate(e.target.value)}
+                                className="bg-transparent text-sm text-white font-bold focus:outline-none cursor-pointer 
+                                    [&::-webkit-calendar-picker-indicator]:filter 
+                                    [&::-webkit-calendar-picker-indicator]:invert"
+                            />
+                            <span className="text-xs text-slate-500 hidden sm:inline">
+                                ({formatDateDisplay(selectedDate)})
+                            </span>
                         </div>
 
                         {/* SCAN BUTTON */}
@@ -501,17 +511,36 @@ const PropScout: React.FC = () => {
                     </div>
                 </div>
 
+                {/* Stats Bar */}
+                {propList.length > 0 && (
+                    <div className="px-6 py-2 flex items-center gap-4 text-xs">
+                        <span className="text-slate-500">
+                            📊 <span className="text-white font-bold">{propList.length}</span> props loaded
+                        </span>
+                        <span className="text-slate-500">
+                            ✨ <span className="text-emerald-400 font-bold">{propsWithEdge}</span> with edge
+                        </span>
+                        <span className="text-slate-500">
+                            👑 <span className="text-amber-400 font-bold">
+                                {propList.filter(p => p.winProbability && p.winProbability >= WIN_PROB_PROFITABLE).length}
+                            </span> profitable
+                        </span>
+                    </div>
+                )}
+
                 {/* Prop Grid */}
                 <div className="flex-1 overflow-y-auto p-6 pt-4">
                     {propList.length === 0 && !isScanning ? (
                         <div className="flex flex-col items-center justify-center h-64 opacity-50">
                             <div className="text-4xl mb-4">🔍</div>
-                            <p>No props found. Click "Scan Market" to start.</p>
+                            <p className="text-center">No props found.<br />Select a date and click "Scan Market" to start.</p>
+                            <p className="text-xs text-slate-600 mt-2">Check browser console for API logs</p>
                         </div>
                     ) : isScanning ? (
                         <div className="flex flex-col items-center justify-center h-64">
                             <div className="animate-spin text-4xl mb-4">⚡</div>
-                            <p className="text-slate-400">Scanning markets...</p>
+                            <p className="text-slate-400">Scanning markets for {formatDateDisplay(selectedDate)}...</p>
+                            <p className="text-xs text-slate-600 mt-2">Check console for progress</p>
                         </div>
                     ) : (
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">

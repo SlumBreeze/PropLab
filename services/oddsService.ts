@@ -1,10 +1,11 @@
 import { SportKey, PropMarketKey, GameEvent, PropLine } from '../types';
 
-const API_KEY = process.env.ODDS_API_KEY || "c99ceaaa8dd6ba6be5d5293bfe7be3da";
+// IMPORTANT: Replace with your actual API key if this one is exhausted
+const API_KEY = "c99ceaaa8dd6ba6be5d5293bfe7be3da";
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
-// Cache Duration: 30 minutes
-const CACHE_DURATION = 30 * 60 * 1000;
+// Cache Duration: 5 minutes (reduced for fresher data)
+const CACHE_DURATION = 5 * 60 * 1000;
 
 export const BOOKMAKER_KEYS = {
   PRIZEPICKS: 'prizepicks',
@@ -34,13 +35,13 @@ async function fetchWithCache<T>(
   const now = Date.now();
   const storageKey = getStorageKey(key);
 
-  // 1. Memory Cache
+  // 1. Memory Cache (skip if force refresh)
   if (!forceRefresh && memoryCache[key] && (now - memoryCache[key].timestamp < CACHE_DURATION)) {
     console.log(`[OddsService] Memory hit: ${key}`);
     return { data: memoryCache[key].data, error: null };
   }
 
-  // 2. Local Storage
+  // 2. Local Storage (skip if force refresh)
   if (!forceRefresh && typeof window !== 'undefined') {
     try {
       const stored = localStorage.getItem(storageKey);
@@ -60,7 +61,7 @@ async function fetchWithCache<T>(
   }
 
   // 3. Network Call
-  console.log(`[OddsService] Fetching fresh: ${key}`);
+  console.log(`[OddsService] 🌐 Fetching fresh: ${key}`);
   try {
     const data = await fetcher();
 
@@ -72,7 +73,6 @@ async function fetchWithCache<T>(
         try {
           localStorage.setItem(storageKey, JSON.stringify(entry));
         } catch (e) {
-          // localStorage might be full
           console.warn("Failed to save to localStorage", e);
         }
       }
@@ -80,7 +80,7 @@ async function fetchWithCache<T>(
     return { data, error: null };
   } catch (err) {
     const errorMessage = err instanceof Error ? err.message : 'Unknown API error';
-    console.error(`[OddsService] Error fetching ${key}:`, errorMessage);
+    console.error(`[OddsService] ❌ Error fetching ${key}:`, errorMessage);
     return { data: null, error: errorMessage };
   }
 }
@@ -94,26 +94,45 @@ async function fetchWithCache<T>(
  */
 export const fetchUpcomingEvents = async (
   sport: SportKey,
-  dateFilter?: string
+  dateFilter?: string,
+  forceRefresh = false
 ): Promise<GameEvent[]> => {
   const fetcher = async (): Promise<GameEvent[]> => {
     let url = `${BASE_URL}/${sport}/events?apiKey=${API_KEY}`;
 
+    // If date filter provided, add time range
+    // IMPORTANT: Use current time as start (API only returns games that haven't commenced)
+    // and extend to end of NEXT day to handle timezone edge cases
     if (dateFilter) {
-      const startOfDay = `${dateFilter}T00:00:00Z`;
-      const endOfDay = `${dateFilter}T23:59:59Z`;
-      url += `&commenceTimeFrom=${startOfDay}&commenceTimeTo=${endOfDay}`;
+      const now = new Date().toISOString();
+      const nextDay = new Date(dateFilter);
+      nextDay.setDate(nextDay.getDate() + 1);
+      const endOfNextDay = `${nextDay.toISOString().split('T')[0]}T23:59:59Z`;
+      url += `&commenceTimeFrom=${now}&commenceTimeTo=${endOfNextDay}`;
     }
 
+    console.log(`[OddsService] 📡 Events URL: ${url.replace(API_KEY, 'API_KEY_HIDDEN')}`);
+
     const res = await fetch(url);
+
+    // Log remaining requests
+    const remaining = res.headers.get('x-requests-remaining');
+    const used = res.headers.get('x-requests-used');
+    console.log(`[OddsService] 📊 API Quota: ${remaining} remaining, ${used} used`);
+
     if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[OddsService] ❌ API Error Response:`, errorText);
       throw new Error(`API returned ${res.status}: ${res.statusText}`);
     }
-    return await res.json();
+
+    const data = await res.json();
+    console.log(`[OddsService] ✅ Found ${data.length} events for ${sport}`);
+    return data;
   };
 
   const cacheKey = dateFilter ? `events_${sport}_${dateFilter}` : `events_${sport}`;
-  const result = await fetchWithCache(cacheKey, fetcher);
+  const result = await fetchWithCache(cacheKey, fetcher, forceRefresh);
 
   if (result.error) {
     console.error(`Failed to fetch events for ${sport}:`, result.error);
@@ -133,18 +152,38 @@ export const fetchPropsForGame = async (
   forceRefresh = false
 ): Promise<PropLine[]> => {
   const marketStr = markets.join(',');
-  // Include today's date in cache key to prevent stale data across days
   const today = new Date().toISOString().split('T')[0];
   const cacheKey = `odds_${gameId}_${marketStr}_${today}`;
 
   const fetcher = async (): Promise<PropLine[]> => {
     const url = `${BASE_URL}/${sport}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us_dfs&markets=${marketStr}&oddsFormat=american`;
+
+    console.log(`[OddsService] 📡 Props URL: ${url.replace(API_KEY, 'API_KEY_HIDDEN')}`);
+
     const res = await fetch(url);
+
+    // Log remaining requests
+    const remaining = res.headers.get('x-requests-remaining');
+    const used = res.headers.get('x-requests-used');
+    if (remaining) {
+      console.log(`[OddsService] 📊 API Quota: ${remaining} remaining, ${used} used`);
+    }
+
     if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[OddsService] ❌ API Error Response:`, errorText);
       throw new Error(`API returned ${res.status}: ${res.statusText}`);
     }
+
     const data = await res.json();
-    return parseOddsResponseRaw(data);
+    const lines = parseOddsResponseRaw(data);
+    console.log(`[OddsService] ✅ Parsed ${lines.length} lines for game ${gameId}`);
+
+    // Debug: Show which books we got
+    const books = [...new Set(lines.map(l => l.bookmakerKey))];
+    console.log(`[OddsService] 📚 Books found: ${books.join(', ')}`);
+
+    return lines;
   };
 
   const result = await fetchWithCache(cacheKey, fetcher, forceRefresh);
@@ -163,7 +202,12 @@ export const fetchPropsForGame = async (
 function parseOddsResponseRaw(data: any): PropLine[] {
   const lines: PropLine[] = [];
 
-  if (!data.bookmakers) return [];
+  if (!data.bookmakers) {
+    console.warn('[OddsService] ⚠️ No bookmakers in response');
+    return [];
+  }
+
+  console.log(`[OddsService] 📖 Processing ${data.bookmakers.length} bookmakers`);
 
   for (const book of data.bookmakers) {
     for (const market of book.markets) {
@@ -205,7 +249,7 @@ export const getSupportedMarkets = (sport: SportKey): PropMarketKey[] => {
     case 'basketball_nba':
       return ['player_points', 'player_rebounds', 'player_assists', 'player_threes'];
     case 'americanfootball_nfl':
-      return ['player_pass_yds', 'player_rush_yds', 'player_reception_yds', 'player_pass_tds'];
+      return ['player_pass_yds', 'player_rush_yds', 'player_reception_yds', 'player_receptions'];
     default:
       return ['player_points'];
   }
@@ -221,5 +265,30 @@ export const clearCache = () => {
       .filter(key => key.startsWith('proplab_cache_'))
       .forEach(key => localStorage.removeItem(key));
   }
-  console.log('[OddsService] Cache cleared');
+  console.log('[OddsService] 🗑️ Cache cleared');
+};
+
+/**
+ * Test API connection
+ */
+export const testApiConnection = async (): Promise<boolean> => {
+  try {
+    const url = `${BASE_URL}/?apiKey=${API_KEY}`;
+    console.log('[OddsService] 🔌 Testing API connection...');
+    const res = await fetch(url);
+
+    const remaining = res.headers.get('x-requests-remaining');
+    console.log(`[OddsService] 📊 API Quota Remaining: ${remaining}`);
+
+    if (res.ok) {
+      console.log('[OddsService] ✅ API connection successful!');
+      return true;
+    } else {
+      console.error('[OddsService] ❌ API connection failed:', res.status);
+      return false;
+    }
+  } catch (err) {
+    console.error('[OddsService] ❌ API connection error:', err);
+    return false;
+  }
 };

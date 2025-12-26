@@ -11,7 +11,9 @@ import {
 import {
   fetchUpcomingEvents,
   fetchPropsForGame,
-  getSupportedMarkets
+  getSupportedMarkets,
+  clearCache,
+  testApiConnection
 } from '../services/oddsService';
 import { matchAndFindEdges } from '../services/matchingService';
 import { analyzeSlip } from '../services/geminiService';
@@ -45,20 +47,17 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // --------------------------------------------------------
 
   /**
-   * Initial Data Load (Events)
+   * Initial API Test on Mount
    */
   useEffect(() => {
-    const loadEvents = async () => {
-      try {
-        const nbaGames = await fetchUpcomingEvents('basketball_nba');
-        setGames(prev => [...prev.filter(g => g.sport_key !== 'basketball_nba'), ...nbaGames]);
-        setLastError(null);
-      } catch (e) {
-        console.error("Failed to load events", e);
-        setLastError("Failed to load games. Check your connection.");
+    const init = async () => {
+      console.log('[GameContext] 🚀 Initializing...');
+      const apiOk = await testApiConnection();
+      if (!apiOk) {
+        setLastError("API connection failed - check your API key");
       }
     };
-    loadEvents();
+    init();
   }, []);
 
   /**
@@ -66,46 +65,57 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
    * @param dateFilter - Optional ISO date (YYYY-MM-DD) to filter games for a specific day.
    */
   const scanMarket = async (dateFilter?: string) => {
-    let currentGames = games;
+    console.log(`[GameContext] 🔍 Starting scan${dateFilter ? ` for ${dateFilter}` : ''}...`);
 
-    if (currentGames.length === 0 || dateFilter) {
-      console.log(`[Scan] Fetching events${dateFilter ? ` for ${dateFilter}` : ''}...`);
-      try {
-        const [nba, nfl] = await Promise.all([
-          fetchUpcomingEvents('basketball_nba', dateFilter),
-          fetchUpcomingEvents('americanfootball_nfl', dateFilter)
-        ]);
-        currentGames = [...nba, ...nfl];
-        setGames(currentGames);
-        setLastError(null);
-      } catch (e) {
-        console.error("Failed to fetch events during scan", e);
-        setLastError("Failed to fetch games. Try again.");
-        return;
-      }
-    }
+    // Clear cache to get fresh data
+    clearCache();
 
-    console.log(`[Scan] Starting scan for ${currentGames.length} games...`);
+    // Always fetch fresh events
+    console.log('[GameContext] 📅 Fetching events...');
 
     try {
+      const [nba, nfl] = await Promise.all([
+        fetchUpcomingEvents('basketball_nba', dateFilter, true), // force refresh
+        fetchUpcomingEvents('americanfootball_nfl', dateFilter, true) // force refresh
+      ]);
+
+      const currentGames = [...nba, ...nfl];
+      setGames(currentGames);
+
+      console.log(`[GameContext] 📊 Found ${nba.length} NBA games, ${nfl.length} NFL games`);
+
+      if (currentGames.length === 0) {
+        console.warn('[GameContext] ⚠️ No games found for selected date');
+        setLastError("No games found for selected date");
+        return;
+      }
+
+      setLastError(null);
+
+      console.log(`[GameContext] 🎯 Scanning ${currentGames.length} games for props...`);
+
       const newProps: Record<string, PlayerPropItem> = {};
 
       // Process games in batches to avoid overwhelming the API
-      const BATCH_SIZE = 3;
+      const BATCH_SIZE = 2; // Reduced batch size
       for (let i = 0; i < currentGames.length; i += BATCH_SIZE) {
         const batch = currentGames.slice(i, i + BATCH_SIZE);
+
+        console.log(`[GameContext] 📦 Processing batch ${Math.floor(i / BATCH_SIZE) + 1}/${Math.ceil(currentGames.length / BATCH_SIZE)}`);
 
         await Promise.all(batch.map(async (game) => {
           const markets = getSupportedMarkets(game.sport_key);
           if (markets.length === 0) return;
 
           try {
-            const allLines = await fetchPropsForGame(game.sport_key, game.id, markets, true);
+            console.log(`[GameContext] 🏀 Fetching: ${game.away_team} @ ${game.home_team}`);
 
-            console.log(`[Debug] Game ${game.away_team} vs ${game.home_team}: Raw Lines Found = ${allLines.length}`);
+            const allLines = await fetchPropsForGame(game.sport_key, game.id, markets, true); // force refresh
+
+            console.log(`[GameContext] 📈 ${game.away_team} @ ${game.home_team}: ${allLines.length} lines`);
 
             if (allLines.length === 0) {
-              console.warn(`[Debug] No lines from API for ${game.id}`);
+              console.warn(`[GameContext] ⚠️ No lines for ${game.id}`);
               return;
             }
 
@@ -120,22 +130,25 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
               });
             }
           } catch (err) {
-            console.warn(`[Scan] Failed game ${game.id}`, err);
+            console.warn(`[GameContext] ❌ Failed game ${game.id}`, err);
           }
         }));
 
-        // Small delay between batches to be nice to the API
+        // Delay between batches to respect rate limits
         if (i + BATCH_SIZE < currentGames.length) {
-          await new Promise(r => setTimeout(r, 200));
+          console.log('[GameContext] ⏳ Waiting 500ms before next batch...');
+          await new Promise(r => setTimeout(r, 500));
         }
       }
 
-      console.log(`[Scan] Complete. Found ${Object.keys(newProps).length} props.`);
+      const propsWithEdge = Object.values(newProps).filter(p => p.edgeType !== 'NONE');
+      console.log(`[GameContext] ✅ Scan complete! Found ${Object.keys(newProps).length} props, ${propsWithEdge.length} with edge`);
+
       setProps(prev => ({ ...prev, ...newProps }));
       setLastError(null);
 
     } catch (err) {
-      console.error("[Scan] Error", err);
+      console.error("[GameContext] ❌ Scan error:", err);
       setLastError("Scan failed. Please try again.");
     }
   };
@@ -176,10 +189,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setActiveSlipId(newSlip.id);
     }
 
-    // --- NEW: TRIGGER HIGHLIGHT ---
-    // When a user picks a player, highlight their team to encourage stacking
+    // Trigger team highlighting for correlation
     setHighlightTeam(prop.team);
-    // ------------------------------
 
     setSlips(prev => prev.map(slip => {
       if (slip.id === activeSlipId || (activeSlipId === undefined && slip.status === 'DRAFT')) {
