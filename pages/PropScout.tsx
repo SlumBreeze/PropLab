@@ -80,10 +80,10 @@ const PropCard: React.FC<{
                     {/* WIN PROBABILITY BADGE - THE GOLDEN CROWN */}
                     {winProbability !== null && winProbability > 50 && (
                         <div className={`text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 ${isPowerPlayWorthy
-                                ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black shadow-[0_0_12px_rgba(251,191,36,0.5)]'
-                                : isProfitable
-                                    ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                    : 'bg-slate-800 text-slate-400'
+                            ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black shadow-[0_0_12px_rgba(251,191,36,0.5)]'
+                            : isProfitable
+                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
+                                : 'bg-slate-800 text-slate-400'
                             }`}>
                             {winProbability}% Win
                             {isPowerPlayWorthy && <span>👑</span>}
@@ -382,7 +382,15 @@ const PropScout: React.FC = () => {
 
     // Calendar Date Picker State
     const today = new Date().toISOString().split('T')[0];
-    const [selectedDate, setSelectedDate] = useState<string>(today);
+    const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const currentHour = new Date().getHours();
+
+    // Smart default: if it's late (10 PM+), default to tomorrow
+    const smartDefault = currentHour >= 22 ? tomorrow : today;
+    const [selectedDate, setSelectedDate] = useState<string>(smartDefault);
+
+    // Show warning if user selected today and it's evening (6 PM+)
+    const showLateWarning = selectedDate === today && currentHour >= 18;
 
     // Format date for display
     const formatDateDisplay = (dateStr: string): string => {
@@ -441,19 +449,28 @@ const PropScout: React.FC = () => {
 
                     <div className="flex items-center gap-4">
                         {/* CALENDAR DATE PICKER */}
-                        <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-2 rounded-lg border border-slate-800">
-                            <span className="text-lg">📅</span>
-                            <input
-                                type="date"
-                                value={selectedDate}
-                                onChange={(e) => setSelectedDate(e.target.value)}
-                                className="bg-transparent text-sm text-white font-bold focus:outline-none cursor-pointer 
-                                    [&::-webkit-calendar-picker-indicator]:filter 
-                                    [&::-webkit-calendar-picker-indicator]:invert"
-                            />
-                            <span className="text-xs text-slate-500 hidden sm:inline">
-                                ({formatDateDisplay(selectedDate)})
-                            </span>
+                        <div className="flex flex-col">
+                            <div className="flex items-center gap-2 bg-slate-900/80 px-3 py-2 rounded-lg border border-slate-800">
+                                <span className="text-lg">📅</span>
+                                <input
+                                    type="date"
+                                    value={selectedDate}
+                                    min={today}
+                                    onChange={(e) => setSelectedDate(e.target.value)}
+                                    className="bg-transparent text-sm text-white font-bold focus:outline-none cursor-pointer 
+                                        [&::-webkit-calendar-picker-indicator]:filter 
+                                        [&::-webkit-calendar-picker-indicator]:invert"
+                                />
+                                <span className="text-xs text-slate-500 hidden sm:inline">
+                                    ({formatDateDisplay(selectedDate)})
+                                </span>
+                            </div>
+                            {/* Late Warning Banner */}
+                            {showLateWarning && (
+                                <div className="mt-1 text-[10px] text-orange-400 font-medium">
+                                    ⚠️ Some games may have already started
+                                </div>
+                            )}
                         </div>
 
                         {/* SCAN BUTTON */}
