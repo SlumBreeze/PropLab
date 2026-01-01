@@ -1,7 +1,7 @@
 import { SportKey, PropMarketKey, GameEvent, PropLine } from '../types';
 
 // IMPORTANT: Replace with your actual API key if this one is exhausted
-const API_KEY = "c99ceaaa8dd6ba6be5d5293bfe7be3da";
+const API_KEY = import.meta.env.VITE_ODDS_API_KEY;
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
 // Cache Duration: 5 minutes (reduced for fresher data)
