@@ -90,6 +90,58 @@ export interface PlayerPropItem {
   targetLine?: number;
   // AI Context
   aiInsight?: AiInsight;
+
+  // Verification & History
+  verification?: PropVerification;
+  history?: PlayerPropHistory;
+  
+  // Line Movement
+  lineMovement?: LineMovement;
+}
+
+export interface LineMovement {
+  openingLine: number;
+  currentLine: number;
+  movement: number;          // +2.5 means line moved up
+  direction: 'STEAM_OVER' | 'STEAM_UNDER' | 'STABLE';
+  isRLM: boolean;            // Reverse Line Movement (sharp signal)
+  movementTimestamp: number;
+}
+
+export interface PropVerification {
+  isPlayerActive: boolean;          // Confirmed in lineup
+  injuryVerified: boolean;          // Cross-checked injury report
+  minutesProjectionSource: string;  // Where did we get this?
+  lastVerified: number;             // Timestamp
+  confidenceLevel: 'VERIFIED' | 'PROJECTED' | 'UNCERTAIN';
+}
+
+export interface PlayerPropHistory {
+  seasonHitRate: {
+    over: number;   // % of games player hit OVER
+    under: number;  // % of games player hit UNDER
+    push: number;
+  };
+  last10HitRate: {
+    over: number;
+    under: number;
+  };
+  vsCurrentLine: {
+    timesOver: number;   // How many times exceeded this specific line
+    timesUnder: number;
+    avgPerformance: number;  // Season avg for this stat
+  };
+  streakInfo: string;  // "Hit OVER in 7 of last 10"
+}
+
+export interface PlayerSituational {
+  injuryStatus: 'HEALTHY' | 'QUESTIONABLE' | 'PROBABLE' | 'OUT' | 'GTD';
+  recentForm: 'HOT' | 'COLD' | 'NORMAL';  // Last 5 games vs season avg
+  restDays: number;                        // Days since last game
+  isBackToBack: boolean;
+  projectedMinutes: number | null;
+  matchupGrade: 'ELITE' | 'GOOD' | 'NEUTRAL' | 'TOUGH' | 'BRUTAL';
+  gameScript: 'BLOWOUT_RISK' | 'COMPETITIVE' | 'GARBAGE_TIME_UPSIDE';
 }
 
 export interface AiInsight {
@@ -97,6 +149,7 @@ export interface AiInsight {
   injuryNews?: string;
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
   lastUpdated: number;
+  situational?: PlayerSituational;
 }
 
 // ------------------------------------------------------------------
@@ -154,4 +207,5 @@ export interface PropLabState {
   createSlip: (type: 'POWER' | 'FLEX') => void;
   scanMarket: (dateFilter?: string) => Promise<void>;
   analyzeCurrentSlip: () => Promise<void>;
+  analyzePlayerSituation: (propId: string) => Promise<void>;
 }

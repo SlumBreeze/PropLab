@@ -1,5 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
-import { Slip, SlipAnalysisResult } from '../types';
+import { Slip, SlipAnalysisResult, PlayerSituational } from '../types';
 
 const API_KEY = import.meta.env.VITE_GEMINI_KEY;
 
@@ -10,6 +10,72 @@ if (!API_KEY) {
 const genAI = new GoogleGenAI({ apiKey: API_KEY || "MISSING_KEY" });
 
 const MODEL_NAME = "gemini-2.0-flash";
+
+export const fetchPlayerSituationalContext = async (
+  playerName: string, 
+  team: string, 
+  opponent: string, 
+  sport: string
+): Promise<PlayerSituational | null> => {
+  if (!API_KEY) return null;
+
+  const prompt = `
+You are a Sports Injury & Situational Analyst for ${sport}.
+
+Analyze the upcoming game for:
+Player: ${playerName} (${team})
+Opponent: ${opponent}
+
+Address these specific questions:
+1. Is ${playerName} playing tonight? Any injury concerns?
+2. How has ${playerName} performed in last 5 games vs season average?
+3. What's the defensive ranking of ${opponent} against this player's position?
+
+Based on your knowledge (up to your cutoff) and general logic, output a JSON object strictly matching this schema:
+
+interface PlayerSituational {
+  injuryStatus: 'HEALTHY' | 'QUESTIONABLE' | 'PROBABLE' | 'OUT' | 'GTD';
+  recentForm: 'HOT' | 'COLD' | 'NORMAL';  // Last 5 games vs season avg
+  restDays: number;                        // Estimate days since last game (default 1-2 if unknown)
+  isBackToBack: boolean;                   // Default false if unknown
+  projectedMinutes: number | null;         // Estimate based on role
+  matchupGrade: 'ELITE' | 'GOOD' | 'NEUTRAL' | 'TOUGH' | 'BRUTAL';
+  gameScript: 'BLOWOUT_RISK' | 'COMPETITIVE' | 'GARBAGE_TIME_UPSIDE';
+}
+
+Return ONLY valid JSON.
+`;
+
+  try {
+    const response = await genAI.models.generateContent({
+      model: MODEL_NAME,
+      contents: prompt,
+    });
+
+    const text = response.text?.trim();
+    if (!text) throw new Error("Empty response from Gemini");
+
+    // Clean up response
+    let cleanedText = text;
+    if (cleanedText.startsWith('```json')) {
+      cleanedText = cleanedText.slice(7);
+    }
+    if (cleanedText.startsWith('```')) {
+      cleanedText = cleanedText.slice(3);
+    }
+    if (cleanedText.endsWith('```')) {
+      cleanedText = cleanedText.slice(0, -3);
+    }
+    cleanedText = cleanedText.trim();
+
+    const data = JSON.parse(cleanedText);
+    return data as PlayerSituational;
+
+  } catch (error) {
+    console.error("Gemini Situational Analysis Failed:", error);
+    return null;
+  }
+};
 
 export const analyzeSlip = async (slip: Slip): Promise<SlipAnalysisResult> => {
   if (!slip || slip.selections.length === 0) {

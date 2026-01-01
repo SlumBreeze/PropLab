@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useGameContext } from '../hooks/useGameContext';
 import { PlayerPropItem, Slip, SlipAnalysisResult } from '../types';
+import { calculateSlipCorrelation } from '../services/correlationService';
+import { calculatePropLabScore, getScoreColor } from '../services/scoringService';
 
 // --------------------------------------------------------------------------------
 // UTILS & COMPONENTS
@@ -20,8 +22,10 @@ const WIN_PROB_POWER_PLAY = 58.0;
 const PropCard: React.FC<{
     item: PlayerPropItem;
     onAdd: (side: 'OVER' | 'UNDER') => void;
+    onCheckSituation: () => void;
     isHighlighted?: boolean;
-}> = ({ item, onAdd, isHighlighted }) => {
+    isAnalyzing?: boolean;
+}> = ({ item, onAdd, onCheckSituation, isHighlighted, isAnalyzing }) => {
     const {
         prizePicksLine,
         sharpLines,
@@ -33,7 +37,8 @@ const PropCard: React.FC<{
         maxAcceptableLine,
         minAcceptableLine,
         sharpAgreement,
-        winProbability
+        winProbability,
+        aiInsight
     } = item;
 
     // Determine edge styling
@@ -63,54 +68,125 @@ const PropCard: React.FC<{
     const isProfitable = winProbability !== null && winProbability >= WIN_PROB_PROFITABLE;
     const isPowerPlayWorthy = winProbability !== null && winProbability >= WIN_PROB_POWER_PLAY;
 
+    // Situational Data
+    const sit = aiInsight?.situational;
+    
+    // Verification & History
+    const { verification, history, lineMovement } = item;
+    const isVetoed = verification && (
+        verification.confidenceLevel === 'UNCERTAIN' || 
+        !verification.isPlayerActive || 
+        !verification.injuryVerified
+    );
+
+    // PROPLAB SCORE
+    const propLabScore = calculatePropLabScore(item);
+    const scoreColor = getScoreColor(propLabScore);
+
     return (
         <div className={`relative group backdrop-blur-sm border transition-all duration-300 hover:scale-[1.01] p-4 rounded-xl
             ${isHighlighted ? 'bg-indigo-900/30 ring-2 ring-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.3)]' : 'bg-slate-900/40'}
-            ${edgeColor} ${glowEffect}`}>
+            ${isVetoed ? 'grayscale opacity-70 border-slate-800' : edgeColor} ${glowEffect}`}>
+
+            {/* VETO OVERLAY */}
+            {isVetoed && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-black/40 rounded-xl backdrop-blur-[2px]">
+                   <div className="bg-rose-950/90 border border-rose-500/50 px-3 py-2 rounded-lg text-center shadow-2xl">
+                       <div className="text-xl mb-1">⚠️</div>
+                       <div className="text-xs font-bold text-rose-200 uppercase">Vetoed</div>
+                       <div className="text-[9px] text-rose-300">
+                           {!verification?.isPlayerActive ? 'Player OUT/DNP' : 'Injury Concern'}
+                       </div>
+                   </div>
+                </div>
+            )}
 
             {/* Header: Player & Team */}
             <div className="flex justify-between items-start mb-3">
                 <div>
                     <h3 className="text-lg font-bold text-slate-100 leading-tight">{item.playerName}</h3>
-                    <p className="text-xs text-slate-400 font-medium tracking-wider">{item.team} • {primaryType}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                        <p className="text-xs text-slate-400 font-medium tracking-wider">{item.team} • {primaryType}</p>
+                        {/* Verification Badge */}
+                        {verification && verification.confidenceLevel === 'VERIFIED' && (
+                             <span className="text-[8px] px-1 py-0.5 rounded bg-blue-500/20 text-blue-300 border border-blue-500/30 flex items-center gap-0.5">
+                                 🛡️ Verified
+                             </span>
+                        )}
+                    </div>
                 </div>
 
-                {/* Badges Column */}
+                {/* SCORES COLUMN */}
                 <div className="flex flex-col items-end gap-1">
-                    {/* WIN PROBABILITY BADGE - THE GOLDEN CROWN */}
-                    {winProbability !== null && winProbability > 50 && (
-                        <div className={`text-[10px] font-bold px-2 py-1 rounded flex items-center gap-1 ${isPowerPlayWorthy
-                            ? 'bg-gradient-to-r from-amber-400 to-yellow-300 text-black shadow-[0_0_12px_rgba(251,191,36,0.5)]'
-                            : isProfitable
-                                ? 'bg-amber-500/20 text-amber-400 border border-amber-500/30'
-                                : 'bg-slate-800 text-slate-400'
-                            }`}>
-                            {winProbability}% Win
-                            {isPowerPlayWorthy && <span>👑</span>}
-                            {isProfitable && !isPowerPlayWorthy && <span>✓</span>}
-                        </div>
-                    )}
+                    {/* PROPLAB SCORE BADGE */}
+                    <div className={`text-xl font-black ${scoreColor} leading-none flex items-center gap-1`}>
+                        {propLabScore}
+                        <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest pt-1">SCORE</span>
+                    </div>
 
-                    {/* Edge Type Badge */}
-                    {edgeType !== 'NONE' && (
-                        <div className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest ${edgeType === 'DISCREPANCY'
-                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                            : 'bg-cyan-500/20 text-cyan-400 border border-cyan-500/30'
-                            }`}>
-                            {edgeType}
-                        </div>
-                    )}
-
-                    {/* Sharp Agreement */}
-                    {sharpAgreement !== undefined && sharpAgreement < 100 && (
-                        <div className={`text-[9px] px-1.5 py-0.5 rounded ${sharpAgreement >= 80 ? 'text-emerald-400' :
-                            sharpAgreement >= 50 ? 'text-yellow-400' : 'text-rose-400'
-                            }`}>
-                            {sharpAgreement}% consensus
+                    {/* HIT RATE BADGE */}
+                    {history && (
+                        <div className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            📊 {recommendedSide === 'OVER' ? Math.round(history.last10HitRate.over * 100) : Math.round(history.last10HitRate.under * 100)}% L10
                         </div>
                     )}
                 </div>
             </div>
+
+            {/* SITUATIONAL CONTEXT & LINE MOVEMENT */}
+            {(sit || lineMovement) && (
+                <div className="mb-3 bg-slate-950/50 rounded-lg p-2 border border-slate-800/50 space-y-2">
+                    {/* SITUATIONAL */}
+                    {sit && (
+                        <>
+                            <div className="flex justify-between items-center">
+                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${
+                                    sit.injuryStatus === 'HEALTHY' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-rose-500/20 text-rose-400'
+                                }`}>{sit.injuryStatus}</span>
+                                <span className={`text-[9px] font-bold ${
+                                    sit.recentForm === 'HOT' ? 'text-orange-400' : sit.recentForm === 'COLD' ? 'text-blue-400' : 'text-slate-400'
+                                }`}>{sit.recentForm === 'HOT' ? '🔥 HOT' : sit.recentForm === 'COLD' ? '❄️ COLD' : 'NORMAL'} FORM</span>
+                            </div>
+                            <div className="flex justify-between items-center text-[10px] text-slate-400">
+                                <div>
+                                    Matchup: <span className={`font-bold ${
+                                        sit.matchupGrade === 'ELITE' ? 'text-purple-400' : 
+                                        sit.matchupGrade === 'BRUTAL' ? 'text-rose-400' : 'text-slate-200'
+                                    }`}>{sit.matchupGrade === 'ELITE' ? '🎯 SMASH SPOT' : sit.matchupGrade}</span>
+                                </div>
+                                <div>{sit.restDays}d Rest</div>
+                            </div>
+                        </>
+                    )}
+                    
+                    {/* LINE MOVEMENT */}
+                    {lineMovement && (
+                        <div className="pt-2 border-t border-slate-800/50 flex justify-between items-center text-[10px]">
+                            <span className="text-slate-500 font-bold uppercase">Line Move</span>
+                            <div className="flex items-center gap-1">
+                                <span className="text-slate-400">{lineMovement.openingLine}</span>
+                                <span className="text-slate-600">→</span>
+                                <span className={`font-bold ${
+                                    lineMovement.direction === 'STEAM_OVER' ? 'text-emerald-400' : 
+                                    lineMovement.direction === 'STEAM_UNDER' ? 'text-rose-400' : 'text-slate-200'
+                                }`}>{lineMovement.currentLine}</span>
+                                {lineMovement.isRLM && <span className="ml-1 text-[8px] bg-purple-500/20 text-purple-300 px-1 rounded font-bold">RLM 🧠</span>}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+            
+            {/* Context Button (if no data) */}
+            {!sit && (
+                <button 
+                    onClick={onCheckSituation}
+                    disabled={isAnalyzing}
+                    className="mb-3 w-full py-1 rounded bg-slate-800/50 hover:bg-slate-800 text-[10px] text-indigo-300 font-bold border border-indigo-500/20 transition-colors flex items-center justify-center gap-1"
+                >
+                    {isAnalyzing ? '...' : '🔍 Check Context'}
+                </button>
+            )}
 
             {/* PP vs Sharp Comparison */}
             <div className="flex items-center gap-3 mb-3">
@@ -217,8 +293,9 @@ const SlipSidebar: React.FC<{
     };
 
     const multiplier = getMultiplier(slip.selections.length, slip.type);
-    const impliedOdds = getImpliedOdds(slip.selections.length, slip.type);
-    const isOptimal = impliedOdds !== 0 && impliedOdds > -120; // Green if -119 or better
+    
+    // --- NEW CORRELATION ENGINE ---
+    const correlation = React.useMemo(() => calculateSlipCorrelation(slip.selections), [slip.selections]);
 
     // Calculate average win probability for the slip
     const selectionsWithProb = slip.selections.filter(s => s.winProbability !== null);
@@ -240,16 +317,35 @@ const SlipSidebar: React.FC<{
                 <h2 className="text-xl font-black text-white">
                     {slip.selections.length} Leg {slip.type === 'POWER' ? 'Power Play' : 'Flex Play'}
                 </h2>
-                {/* Average Win Probability */}
-                {avgWinProb !== null && (
-                    <div className={`mt-2 text-xs font-bold ${avgWinProb >= WIN_PROB_PROFITABLE ? 'text-amber-400' : 'text-slate-500'}`}>
-                        Avg Win Prob: {avgWinProb.toFixed(1)}% {avgWinProb >= WIN_PROB_PROFITABLE && '👑'}
-                    </div>
-                )}
+                
+                {/* Correlation Score Banner */}
+                <div className="mt-2 flex items-center gap-2">
+                     <div className={`flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden`}>
+                         <div 
+                           className={`h-full ${correlation.score >= 80 ? 'bg-emerald-500' : correlation.score >= 50 ? 'bg-yellow-500' : 'bg-rose-500'}`} 
+                           style={{ width: `${correlation.score}%` }}
+                         />
+                     </div>
+                     <span className={`text-xs font-bold ${correlation.score >= 65 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                        {correlation.score} CORR
+                     </span>
+                </div>
             </div>
 
             {/* Selections List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {/* SHOW CORRELATION INSIGHTS IF ANY */}
+                {correlation.details.length > 0 && correlation.score !== 50 && (
+                    <div className="mb-2 p-2 rounded bg-slate-900/80 border border-slate-800">
+                        <div className="text-[9px] font-bold text-slate-500 uppercase mb-1">Correlation Matrix</div>
+                        {correlation.details.map((detail, i) => (
+                            <div key={i} className="text-[10px] text-slate-300 flex items-center gap-1">
+                                <span>🔗</span> {detail}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
                 {slip.selections.map((sel) => (
                     <div key={sel.id} className="relative group bg-slate-900 border border-slate-800 rounded-lg p-3 hover:border-slate-700 transition-colors">
                         <button
@@ -314,18 +410,6 @@ const SlipSidebar: React.FC<{
             {/* Footer / Payout */}
             <div className="p-4 bg-slate-900 border-t border-white/5">
 
-                {/* MATH WARNING BANNER */}
-                {impliedOdds !== 0 && (
-                    <div className={`mb-3 p-2 rounded text-[10px] text-center font-bold border ${isOptimal
-                        ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30'
-                        : 'bg-orange-500/10 text-orange-400 border-orange-500/30'
-                        }`}>
-                        {isOptimal
-                            ? `⚡ OPTIMAL SLIP (${impliedOdds} implied odds)`
-                            : `⚠️ SUB-OPTIMAL (${impliedOdds} odds). Try 5-Flex for best math.`}
-                    </div>
-                )}
-
                 {/* ANALYZE BUTTON */}
                 <button
                     onClick={onAnalyze}
@@ -371,6 +455,7 @@ const PropScout: React.FC = () => {
         activeSlipId,
         scanMarket,
         analyzeCurrentSlip,
+        analyzePlayerSituation,
         slipAnalysis,
         analysisLoading,
         highlightTeam
@@ -566,7 +651,9 @@ const PropScout: React.FC = () => {
                                     key={prop.id}
                                     item={prop}
                                     onAdd={(side) => addSelectionToSlip(prop, side)}
+                                    onCheckSituation={() => analyzePlayerSituation(prop.id)}
                                     isHighlighted={highlightTeam === prop.team}
+                                    isAnalyzing={analysisLoading}
                                 />
                             ))}
                         </div>

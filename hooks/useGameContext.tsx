@@ -16,7 +16,7 @@ import {
   testApiConnection
 } from '../services/oddsService';
 import { matchAndFindEdges } from '../services/matchingService';
-import { analyzeSlip } from '../services/geminiService';
+import { analyzeSlip, fetchPlayerSituationalContext } from '../services/geminiService';
 
 const GameContext = createContext<PropLabState | undefined>(undefined);
 
@@ -59,6 +59,40 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     init();
   }, []);
+
+  const analyzePlayerSituation = async (propId: string) => {
+    const prop = props[propId];
+    if (!prop) return;
+
+    setAnalysisLoading(true);
+    try {
+      const situational = await fetchPlayerSituationalContext(
+        prop.playerName, 
+        prop.team, 
+        prop.opponent,
+        prop.sport
+      );
+
+      if (situational) {
+        setProps(prev => ({
+          ...prev,
+          [propId]: {
+            ...prev[propId],
+            aiInsight: {
+              ...prev[propId].aiInsight,
+              confidence: prev[propId].aiInsight?.confidence || 'MEDIUM', // preserve or default
+              lastUpdated: Date.now(),
+              situational
+            }
+          }
+        }));
+      }
+    } catch (e) {
+      console.error("Situation analysis failed", e);
+    } finally {
+      setAnalysisLoading(false);
+    }
+  };
 
   /**
    * Scan Market: Fetches props for ALL games and finds edges
@@ -257,6 +291,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     createSlip,
     scanMarket,
     analyzeCurrentSlip,
+    analyzePlayerSituation,
   };
 
   return (
