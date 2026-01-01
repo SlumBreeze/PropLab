@@ -458,7 +458,8 @@ const PropScout: React.FC = () => {
         analyzePlayerSituation,
         slipAnalysis,
         analysisLoading,
-        highlightTeam
+        highlightTeam,
+        lastError
     } = useGameContext();
 
     const [filter, setFilter] = useState<'ALL' | 'NBA' | 'NFL'>('ALL');
@@ -627,6 +628,17 @@ const PropScout: React.FC = () => {
                                 {propList.filter(p => p.winProbability && p.winProbability >= WIN_PROB_PROFITABLE).length}
                             </span> profitable
                         </span>
+                    </div>
+                )}
+
+                {/* Error Banner */}
+                {lastError && (
+                    <div className="mx-6 mt-4 p-3 bg-red-900/50 border border-red-500/50 rounded-lg flex items-center gap-3 animate-in fade-in slide-in-from-top-2">
+                        <span className="text-xl">⚠️</span>
+                        <div className="flex-1">
+                            <h3 className="text-sm font-bold text-red-200">Error</h3>
+                            <p className="text-xs text-red-300">{lastError}</p>
+                        </div>
                     </div>
                 )}
 

@@ -286,6 +286,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     slipAnalysis,
     analysisLoading,
     highlightTeam,
+    lastError,
     addSelectionToSlip,
     removeSelectionFromSlip,
     createSlip,

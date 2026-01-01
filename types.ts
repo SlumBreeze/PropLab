@@ -200,6 +200,7 @@ export interface PropLabState {
   slipAnalysis: SlipAnalysisResult | null;
   analysisLoading: boolean;
   highlightTeam?: string | null;
+  lastError?: string | null;
 
   // Actions
   addSelectionToSlip: (prop: PlayerPropItem, side: 'OVER' | 'UNDER') => void;

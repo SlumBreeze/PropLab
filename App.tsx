@@ -1,6 +1,7 @@
 import React from 'react';
 import { GameProvider } from './hooks/useGameContext';
 import PropScout from './pages/PropScout';
+import { ErrorBoundary } from './components/ErrorBoundary';
 
 // Simple Layout Wrapper
 const AppContent: React.FC = () => {
@@ -13,8 +14,10 @@ const AppContent: React.FC = () => {
 
 export default function App() {
   return (
-    <GameProvider>
-      <AppContent />
-    </GameProvider>
+    <ErrorBoundary>
+      <GameProvider>
+        <AppContent />
+      </GameProvider>
+    </ErrorBoundary>
   );
 }
