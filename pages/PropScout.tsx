@@ -459,7 +459,8 @@ const PropScout: React.FC = () => {
         slipAnalysis,
         analysisLoading,
         highlightTeam,
-        lastError
+        lastError,
+        clearError
     } = useGameContext();
 
     const [filter, setFilter] = useState<'ALL' | 'NBA' | 'NFL'>('ALL');
@@ -639,6 +640,12 @@ const PropScout: React.FC = () => {
                             <h3 className="text-sm font-bold text-red-200">Error</h3>
                             <p className="text-xs text-red-300">{lastError}</p>
                         </div>
+                        <button
+                            onClick={clearError}
+                            className="ml-4 px-2 py-1 rounded-md bg-red-800/50 text-red-200 hover:bg-red-800/80 text-xs font-bold"
+                        >
+                            Dismiss
+                        </button>
                     </div>
                 )}
 
@@ -677,7 +684,10 @@ const PropScout: React.FC = () => {
             <div className="w-[340px] z-20 h-full flex-shrink-0">
                 <SlipSidebar
                     slip={activeSlip}
-                    onRemove={(pid) => activeSlipId && removeSelectionFromSlip(activeSlipId, pid)}
+                    onRemove={(pid) => {
+                        if (!activeSlipId) return;
+                        removeSelectionFromSlip(activeSlipId, pid);
+                    }}
                     onAnalyze={analyzeCurrentSlip}
                     analysisResult={slipAnalysis}
                     isAnalysisLoading={analysisLoading}

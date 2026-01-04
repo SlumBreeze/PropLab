@@ -209,4 +209,5 @@ export interface PropLabState {
   scanMarket: (dateFilter?: string) => Promise<void>;
   analyzeCurrentSlip: () => Promise<void>;
   analyzePlayerSituation: (propId: string) => Promise<void>;
+  clearError: () => void;
 }
