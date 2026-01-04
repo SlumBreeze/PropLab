@@ -42,6 +42,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Correlation Highlighting
   const [highlightTeam, setHighlightTeam] = useState<string | null>(null);
 
+  const clearError = () => setLastError(null);
+
   // --------------------------------------------------------
   // METHODS
   // --------------------------------------------------------
@@ -89,6 +91,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     } catch (e) {
       console.error("Situation analysis failed", e);
+      const message = e instanceof Error ? e.message : "An unknown error occurred.";
+      setLastError(`Failed to analyze ${prop.playerName}: ${message}`);
     } finally {
       setAnalysisLoading(false);
     }
@@ -165,6 +169,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
             }
           } catch (err) {
             console.warn(`[GameContext] ❌ Failed game ${game.id}`, err);
+            setLastError(`Failed to fetch props for ${game.away_team} @ ${game.home_team}.`);
           }
         }));
 
@@ -262,12 +267,8 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
       setSlipAnalysis(result);
     } catch (e) {
       console.error("Analysis failed", e);
-      setSlipAnalysis({
-        grade: '?',
-        analysis: 'Analysis failed. Please try again.',
-        correlationScore: 0,
-        recommendation: 'Warning'
-      });
+      const message = e instanceof Error ? e.message : "An unknown error occurred.";
+      setLastError(`Slip analysis failed: ${message}`);
     } finally {
       setAnalysisLoading(false);
     }
@@ -293,6 +294,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     scanMarket,
     analyzeCurrentSlip,
     analyzePlayerSituation,
+    clearError,
   };
 
   return (

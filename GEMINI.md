@@ -1,8 +1,8 @@
-# Gemini Project Context: PropLab (EdgeLab)
+# Gemini Project Context: PropLab
 
 ## Project Overview
 
-**PropLab** (internal name `edgelab`) is a React-based web application designed for Daily Fantasy Sports (DFS) players. Its primary goal is to identify betting "edges" by comparing lines from DFS platforms (like PrizePicks) against sharp bookmaker lines (like Pinnacle). It also utilizes **Google Gemini AI** to analyze betting slips for correlation and expected value (EV).
+**PropLab** is a React-based web application designed for Daily Fantasy Sports (DFS) players. Its primary goal is to identify betting "edges" by comparing lines from DFS platforms (like PrizePicks) against sharp bookmaker lines (like Pinnacle). It also utilizes **Google Gemini AI** to analyze betting slips for correlation and expected value (EV).
 
 ### Key Technologies
 *   **Frontend:** React 19, Vite, TypeScript, Tailwind CSS.
