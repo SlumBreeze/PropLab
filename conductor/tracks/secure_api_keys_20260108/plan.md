@@ -17,10 +17,10 @@
 - [x] Task: Conductor - User Manual Verification 'Service Refactoring' (Protocol in workflow.md)
 
 ## Phase 3: Runtime Validation & Error UI (TDD)
-- [ ] Task: Create `ConfigError` component for hard-stop UI
-    - [ ] Write tests for `ConfigError` component rendering
-    - [ ] Implement `ConfigError.tsx`
-- [ ] Task: Implement environment validation in `useGameContext.tsx`
+- [x] Task: Create `ConfigError` component for hard-stop UI
+    - [x] Write tests for `ConfigError` component rendering
+    - [x] Implement `ConfigError.tsx`
+- [~] Task: Implement environment validation in `useGameContext.tsx`
     - [ ] Write tests verifying the application blocks rendering when keys are missing
     - [ ] Update `useGameContext.tsx` to perform validation and conditionally render `ConfigError`
 - [ ] Task: Conductor - User Manual Verification 'Runtime Validation & Error UI' (Protocol in workflow.md)

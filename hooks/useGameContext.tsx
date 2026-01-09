@@ -19,10 +19,21 @@ import {
 import { matchAndFindEdges } from '../services/matchingService';
 import { analyzeSlip, fetchPlayerSituationalContext } from '../services/geminiService';
 import { calculateSlipCorrelation } from '../services/correlationService';
+import { ConfigError } from '../components/ConfigError';
 
 const GameContext = createContext<PropLabState | undefined>(undefined);
 
 export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  // --------------------------------------------------------
+  // ENVIRONMENT VALIDATION
+  // --------------------------------------------------------
+  const requiredKeys = ['VITE_GEMINI_KEY', 'VITE_ODDS_API_KEY'];
+  const missingKeys = requiredKeys.filter(key => !import.meta.env[key]);
+
+  if (missingKeys.length > 0) {
+    return <ConfigError missingKeys={missingKeys} />;
+  }
+
   // --------------------------------------------------------
   // STATE DEFINITIONS
   // --------------------------------------------------------

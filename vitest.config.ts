@@ -4,7 +4,8 @@ import { defineConfig } from 'vite';
 export default defineConfig({
   test: {
     globals: true,
-    environment: 'node', // scoringService and correlationService are pure logic, so 'node' is faster than 'jsdom'
+    environment: 'jsdom',
+    setupFiles: ['./vitest.setup.ts'],
     include: ['**/*.{test,spec}.{js,mjs,cjs,ts,mts,cts,jsx,tsx}'],
   },
 });
