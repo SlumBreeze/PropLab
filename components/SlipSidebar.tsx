@@ -1,6 +1,5 @@
 import React, { useMemo } from 'react';
-import { Slip, SlipAnalysisResult } from '../types';
-import { calculateSlipCorrelation } from '../services/correlationService';
+import { Slip, SlipAnalysisResult, CorrelationImpact } from '../types';
 import { WIN_PROB_PROFITABLE, POWER_MULTIPLIERS, FLEX_MULTIPLIERS } from '../constants';
 
 interface SlipSidebarProps {
@@ -8,6 +7,7 @@ interface SlipSidebarProps {
   onRemove: (propId: string) => void;
   onAnalyze: () => void;
   analysisResult: SlipAnalysisResult | null;
+  correlationAnalysis: CorrelationImpact | null;
   isAnalysisLoading: boolean;
 }
 
@@ -25,11 +25,19 @@ interface SlipSidebarProps {
  *   onRemove={(propId) => removeFromSlip(propId)}
  *   onAnalyze={() => analyzeSlip()}
  *   analysisResult={slipAnalysis}
+ *   correlationAnalysis={correlationAnalysis}
  *   isAnalysisLoading={false}
  * />
  * ```
  */
-export const SlipSidebar: React.FC<SlipSidebarProps> = ({ slip, onRemove, onAnalyze, analysisResult, isAnalysisLoading }) => {
+export const SlipSidebar: React.FC<SlipSidebarProps> = ({ 
+    slip, 
+    onRemove, 
+    onAnalyze, 
+    analysisResult, 
+    correlationAnalysis,
+    isAnalysisLoading 
+}) => {
 
     if (!slip || slip.selections.length === 0) {
         return (
@@ -66,9 +74,6 @@ export const SlipSidebar: React.FC<SlipSidebarProps> = ({ slip, onRemove, onAnal
 
     const multiplier = getMultiplier(slip.selections.length, slip.type);
 
-    // --- NEW CORRELATION ENGINE ---
-    const correlation = useMemo(() => calculateSlipCorrelation(slip.selections), [slip.selections]);
-
     // Calculate average win probability for the slip
     const selectionsWithProb = slip.selections.filter(s => s.winProbability !== null);
     const avgWinProb = selectionsWithProb.length > 0
@@ -86,33 +91,42 @@ export const SlipSidebar: React.FC<SlipSidebarProps> = ({ slip, onRemove, onAnal
                         {slip.type}
                     </span>
                 </div>
-                <h2 className="text-xl font-black text-white">
-                    {slip.selections.length} Leg {slip.type === 'POWER' ? 'Power Play' : 'Flex Play'}
-                </h2>
+                <div className="flex items-baseline justify-between">
+                    <h2 className="text-xl font-black text-white">
+                        {slip.selections.length} Leg {slip.type === 'POWER' ? 'Power Play' : 'Flex Play'}
+                    </h2>
+                    {correlationAnalysis && (
+                        <span className={`text-lg font-black ${correlationAnalysis.grade === 'A' ? 'text-emerald-400' : correlationAnalysis.grade === 'F' ? 'text-rose-400' : 'text-slate-400'}`}>
+                            {correlationAnalysis.grade}
+                        </span>
+                    )}
+                </div>
 
                 {/* Correlation Score Banner */}
-                <div className="mt-2 flex items-center gap-2">
-                     <div className={`flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden`}>
-                         <div
-                           className={`h-full ${correlation.score >= 80 ? 'bg-emerald-500' : correlation.score >= 50 ? 'bg-yellow-500' : 'bg-rose-500'}`}
-                           style={{ width: `${correlation.score}%` }}
-                         />
-                     </div>
-                     <span className={`text-xs font-bold ${correlation.score >= 65 ? 'text-emerald-400' : 'text-slate-400'}`}>
-                        {correlation.score} CORR
-                     </span>
-                </div>
+                {correlationAnalysis && (
+                    <div className="mt-2 flex items-center gap-2">
+                        <div className={`flex-1 h-1.5 rounded-full bg-slate-800 overflow-hidden`}>
+                            <div
+                                className={`h-full ${correlationAnalysis.score >= 80 ? 'bg-emerald-500' : correlationAnalysis.score >= 40 ? 'bg-yellow-500' : 'bg-rose-500'}`}
+                                style={{ width: `${correlationAnalysis.score}%` }}
+                            />
+                        </div>
+                        <span className={`text-xs font-bold ${correlationAnalysis.score >= 65 ? 'text-emerald-400' : 'text-slate-400'}`}>
+                            {Math.round(correlationAnalysis.score)} CORR
+                        </span>
+                    </div>
+                )}
             </div>
 
             {/* Selections List */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {/* SHOW CORRELATION INSIGHTS IF ANY */}
-                {correlation.details.length > 0 && correlation.score !== 50 && (
+                {correlationAnalysis && correlationAnalysis.details.length > 0 && correlationAnalysis.score !== 50 && (
                     <div className="mb-2 p-2 rounded bg-slate-900/80 border border-slate-800">
                         <div className="text-[9px] font-bold text-slate-500 uppercase mb-1">Correlation Matrix</div>
-                        {correlation.details.map((detail, i) => (
+                        {correlationAnalysis.details.map((detail, i) => (
                             <div key={i} className="text-[10px] text-slate-300 flex items-center gap-1">
-                                <span>🔗</span> {detail}
+                                <span>{detail.includes('Positive') ? '🔗' : '⚠️'}</span> {detail}
                             </div>
                         ))}
                     </div>

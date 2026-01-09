@@ -22,6 +22,7 @@ const PropScout: React.FC = () => {
         analyzeCurrentSlip,
         analyzePlayerSituation,
         slipAnalysis,
+        correlationAnalysis,
         analysisLoading,
         highlightTeam,
         lastError,
@@ -244,6 +245,7 @@ const PropScout: React.FC = () => {
                     }}
                     onAnalyze={analyzeCurrentSlip}
                     analysisResult={slipAnalysis}
+                    correlationAnalysis={correlationAnalysis}
                     isAnalysisLoading={analysisLoading}
                 />
             </div>
