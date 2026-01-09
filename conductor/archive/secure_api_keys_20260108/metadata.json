@@ -1,0 +1,8 @@
+{
+  "track_id": "secure_api_keys_20260108",
+  "type": "feature",
+  "status": "new",
+  "created_at": "2026-01-08T10:00:00Z",
+  "updated_at": "2026-01-08T10:00:00Z",
+  "description": "Scan 'vite.config.ts' and 'services/' for hardcoded API keys. Move keys to '.env', refactor services to use 'import.meta.env', and ensure graceful crash if missing."
+}

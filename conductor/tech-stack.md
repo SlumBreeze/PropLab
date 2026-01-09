@@ -14,6 +14,7 @@
 
 ## Quality Assurance
 - **Testing Framework:** Vitest
+- **Component Testing:** jsdom, @testing-library/react
 - **Type Safety:** TypeScript (Strict Mode)
 - **Schema Validation:** Zod
 
