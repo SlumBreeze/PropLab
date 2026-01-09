@@ -1,4 +1,5 @@
 import { GoogleGenAI } from "@google/genai";
+import { z } from "zod";
 import { Slip, SlipAnalysisResult, PlayerSituational } from '../types';
 
 const API_KEY = import.meta.env.VITE_GEMINI_KEY;
@@ -9,7 +10,33 @@ if (!API_KEY) {
 
 const genAI = new GoogleGenAI({ apiKey: API_KEY || "MISSING_KEY" });
 
+// Using a model that supports JSON mode well
 const MODEL_NAME = "gemini-2.0-flash";
+
+// ------------------------------------------------------------------
+// ZOD SCHEMAS
+// ------------------------------------------------------------------
+
+const PlayerSituationalSchema = z.object({
+  injuryStatus: z.enum(['HEALTHY', 'QUESTIONABLE', 'PROBABLE', 'OUT', 'GTD']),
+  recentForm: z.enum(['HOT', 'COLD', 'NORMAL']),
+  restDays: z.number(),
+  isBackToBack: z.boolean(),
+  projectedMinutes: z.number().nullable(),
+  matchupGrade: z.enum(['ELITE', 'GOOD', 'NEUTRAL', 'TOUGH', 'BRUTAL']),
+  gameScript: z.enum(['BLOWOUT_RISK', 'COMPETITIVE', 'GARBAGE_TIME_UPSIDE']),
+});
+
+const SlipAnalysisSchema = z.object({
+  grade: z.enum(['A', 'B', 'C', 'D', 'F']),
+  analysis: z.string(),
+  recommendation: z.enum(['Submit', 'Warning']),
+  correlationScore: z.number(),
+});
+
+// ------------------------------------------------------------------
+// SERVICES
+// ------------------------------------------------------------------
 
 export const fetchPlayerSituationalContext = async (
   playerName: string, 
@@ -33,43 +60,34 @@ Address these specific questions:
 
 Based on your knowledge (up to your cutoff) and general logic, output a JSON object strictly matching this schema:
 
-interface PlayerSituational {
-  injuryStatus: 'HEALTHY' | 'QUESTIONABLE' | 'PROBABLE' | 'OUT' | 'GTD';
-  recentForm: 'HOT' | 'COLD' | 'NORMAL';  // Last 5 games vs season avg
-  restDays: number;                        // Estimate days since last game (default 1-2 if unknown)
-  isBackToBack: boolean;                   // Default false if unknown
-  projectedMinutes: number | null;         // Estimate based on role
-  matchupGrade: 'ELITE' | 'GOOD' | 'NEUTRAL' | 'TOUGH' | 'BRUTAL';
-  gameScript: 'BLOWOUT_RISK' | 'COMPETITIVE' | 'GARBAGE_TIME_UPSIDE';
+{
+  "injuryStatus": "HEALTHY" | "QUESTIONABLE" | "PROBABLE" | "OUT" | "GTD",
+  "recentForm": "HOT" | "COLD" | "NORMAL",
+  "restDays": number,
+  "isBackToBack": boolean,
+  "projectedMinutes": number | null,
+  "matchupGrade": "ELITE" | "GOOD" | "NEUTRAL" | "TOUGH" | "BRUTAL",
+  "gameScript": "BLOWOUT_RISK" | "COMPETITIVE" | "GARBAGE_TIME_UPSIDE"
 }
-
-Return ONLY valid JSON.
 `;
 
   try {
     const response = await genAI.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
     });
 
     const text = response.text?.trim();
     if (!text) throw new Error("Empty response from Gemini");
 
-    // Clean up response
-    let cleanedText = text;
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.slice(7);
-    }
-    if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.slice(3);
-    }
-    if (cleanedText.endsWith('```')) {
-      cleanedText = cleanedText.slice(0, -3);
-    }
-    cleanedText = cleanedText.trim();
-
-    const data = JSON.parse(cleanedText);
-    return data as PlayerSituational;
+    const data = JSON.parse(text);
+    
+    // Validate with Zod
+    const validatedData = PlayerSituationalSchema.parse(data);
+    return validatedData as PlayerSituational;
 
   } catch (error) {
     console.error("Gemini Situational Analysis Failed:", error);
@@ -116,8 +134,8 @@ Grading Rubric:
 - GRADE D/F: Negative Correlation OR Bad Value (Taking Over when Sharp is lower).
 
 Respond with ONLY valid JSON (no markdown, no code blocks):
-{ 
-   "correlationGrade": "A" | "B" | "C" | "D" | "F", 
+{
+   "grade": "A" | "B" | "C" | "D" | "F", 
    "analysis": "string (max 30 words). Mention Correlation if present, OR mention Value if that is the strength.", 
    "recommendation": "Submit" | "Warning",
    "correlationScore": number (0-100. High score for either high correlation OR high value).
@@ -128,38 +146,27 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
     const response = await genAI.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+      }
     });
 
     const text = response.text?.trim();
     if (!text) throw new Error("Empty response from Gemini");
 
-    // Clean up response - remove markdown code blocks if present
-    let cleanedText = text;
-    if (cleanedText.startsWith('```json')) {
-      cleanedText = cleanedText.slice(7);
-    }
-    if (cleanedText.startsWith('```')) {
-      cleanedText = cleanedText.slice(3);
-    }
-    if (cleanedText.endsWith('```')) {
-      cleanedText = cleanedText.slice(0, -3);
-    }
-    cleanedText = cleanedText.trim();
+    const data = JSON.parse(text);
 
-    const data = JSON.parse(cleanedText);
+    // Validate with Zod
+    const validatedData = SlipAnalysisSchema.parse(data);
 
-    return {
-      grade: data.correlationGrade || '?',
-      analysis: data.analysis || 'No analysis',
-      correlationScore: data.correlationScore || 0,
-      recommendation: data.recommendation || 'Warning'
-    };
+    return validatedData;
 
   } catch (error) {
     console.error("Gemini Analysis Failed:", error);
+    // Return a safe fallback that matches the shape
     return {
       grade: '?',
-      analysis: 'AI Analysis Unavailable - check console for details',
+      analysis: error instanceof Error ? `Analysis Failed: ${error.message}` : 'Analysis Failed',
       correlationScore: 0,
       recommendation: 'Warning'
     };
