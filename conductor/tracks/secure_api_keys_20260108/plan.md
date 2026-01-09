@@ -16,11 +16,11 @@
     - [x] Update `oddsService.ts` implementation
 - [x] Task: Conductor - User Manual Verification 'Service Refactoring' (Protocol in workflow.md)
 
-## Phase 3: Runtime Validation & Error UI (TDD)
+## Phase 3: Runtime Validation & Error UI (TDD) [checkpoint: 86098e1]
 - [x] Task: Create `ConfigError` component for hard-stop UI
     - [x] Write tests for `ConfigError` component rendering
     - [x] Implement `ConfigError.tsx`
-- [~] Task: Implement environment validation in `useGameContext.tsx`
-    - [ ] Write tests verifying the application blocks rendering when keys are missing
-    - [ ] Update `useGameContext.tsx` to perform validation and conditionally render `ConfigError`
-- [ ] Task: Conductor - User Manual Verification 'Runtime Validation & Error UI' (Protocol in workflow.md)
+- [x] Task: Implement environment validation in `useGameContext.tsx`
+    - [x] Write tests verifying the application blocks rendering when keys are missing
+    - [x] Update `useGameContext.tsx` to perform validation and conditionally render `ConfigError`
+- [x] Task: Conductor - User Manual Verification 'Runtime Validation & Error UI' (Protocol in workflow.md)
