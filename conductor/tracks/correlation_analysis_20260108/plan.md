@@ -1,10 +1,10 @@
 # Plan: Implement Correlation Analysis for SGP Synergies
 
-## Phase 1: Core Correlation Logic
+## Phase 1: Core Correlation Logic [checkpoint: ca55349]
 *   [x] Task: Write unit tests for basic correlation detection (QB/WR, RB/RB) in `services/correlationService.test.ts`. 653069c
 *   [x] Task: Implement `detectPositiveStacks` and `detectCannibalization` logic in `services/correlationService.ts`. 653069c
 *   [x] Task: Implement `calculateSlipGrade` function to aggregate correlation signals into an A-F grade. 653069c
-*   [ ] Task: Conductor - User Manual Verification 'Phase 1: Core Correlation Logic' (Protocol in workflow.md)
+*   [x] Task: Conductor - User Manual Verification 'Phase 1: Core Correlation Logic' (Protocol in workflow.md) ca55349
 
 ## Phase 2: Context Integration & UI
 *   [ ] Task: Update `useGameContext.tsx` to include `correlationAnalysis` in the state, triggered by slip changes.
