@@ -17,3 +17,4 @@ PropLab provides a competitive advantage through:
 * **Slip:** A collection of 2-6 player selections (Power Play vs. Flex Play).
 * **Edge:** The mathematical discrepancy between the DFS line and the Sharp Bookmaker line.
 * **EV (Expected Value):** Calculated based on the implied win probability relative to the payout multiplier.
+* **Correlation:** The statistical relationship between player outcomes (e.g., QB yards and WR yards), used to optimize slip win probability.
