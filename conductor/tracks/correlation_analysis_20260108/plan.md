@@ -8,7 +8,7 @@
 
 ## Phase 2: Context Integration & UI
 *   [x] Task: Update `useGameContext.tsx` to include `correlationAnalysis` in the state, triggered by slip changes. fedeb58
-*   [ ] Task: Update `SlipSidebar.tsx` to display the correlation grade and specific synergy/alert messages.
+*   [x] Task: Update `SlipSidebar.tsx` to display the correlation grade and specific synergy/alert messages. 8c9be18
 *   [ ] Task: Verify end-to-end flow: adding correlated players updates the UI with the correct grade and analysis.
 *   [ ] Task: Conductor - User Manual Verification 'Phase 2: Context Integration & UI' (Protocol in workflow.md)
 
