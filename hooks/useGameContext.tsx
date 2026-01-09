@@ -6,7 +6,8 @@ import {
   SlipSelection,
   GameEvent,
   PropMarketKey,
-  SlipAnalysisResult
+  SlipAnalysisResult,
+  CorrelationImpact
 } from '../types';
 import {
   fetchUpcomingEvents,
@@ -17,6 +18,7 @@ import {
 } from '../services/oddsService';
 import { matchAndFindEdges } from '../services/matchingService';
 import { analyzeSlip, fetchPlayerSituationalContext } from '../services/geminiService';
+import { calculateSlipCorrelation } from '../services/correlationService';
 
 const GameContext = createContext<PropLabState | undefined>(undefined);
 
@@ -35,6 +37,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Analysis State
   const [analysisLoading, setAnalysisLoading] = useState(false);
   const [slipAnalysis, setSlipAnalysis] = useState<SlipAnalysisResult | null>(null);
+  const [correlationAnalysis, setCorrelationAnalysis] = useState<CorrelationImpact | null>(null);
 
   // Error State (for UI feedback)
   const [lastError, setLastError] = useState<string | null>(null);
@@ -45,7 +48,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const clearError = () => setLastError(null);
 
   // --------------------------------------------------------
-  // METHODS
+  // EFFECTS
   // --------------------------------------------------------
 
   /**
@@ -61,6 +64,27 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
     init();
   }, []);
+
+  /**
+   * Trigger Correlation Analysis when the active slip changes
+   */
+  useEffect(() => {
+    if (!activeSlipId) {
+      setCorrelationAnalysis(null);
+      return;
+    }
+
+    const activeSlip = slips.find(s => s.id === activeSlipId);
+    if (!activeSlip || activeSlip.selections.length < 2) {
+      setCorrelationAnalysis(null);
+      return;
+    }
+
+    console.log('[GameContext] 📊 Calculating slip correlation...');
+    const result = calculateSlipCorrelation(activeSlip.selections);
+    setCorrelationAnalysis(result);
+  }, [activeSlipId, slips]);
+
 
   const analyzePlayerSituation = async (propId: string) => {
     const prop = props[propId];
@@ -285,6 +309,7 @@ export const GameProvider: React.FC<{ children: React.ReactNode }> = ({ children
     displayMode,
     minEdgeScore,
     slipAnalysis,
+    correlationAnalysis,
     analysisLoading,
     highlightTeam,
     lastError,

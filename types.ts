@@ -1,4 +1,3 @@
-
 export type Region = 'us' | 'us_dfs';
 
 // Supported Sports on The Odds API
@@ -181,6 +180,12 @@ export interface SlipAnalysisResult {
   recommendation: 'Submit' | 'Warning';
 }
 
+export interface CorrelationImpact {
+  score: number;
+  details: string[];
+  grade: 'A' | 'B' | 'C' | 'D' | 'F';
+}
+
 // ------------------------------------------------------------------
 // APP STATE (matches useGameContext)
 // ------------------------------------------------------------------
@@ -198,6 +203,7 @@ export interface PropLabState {
 
   // Analysis State
   slipAnalysis: SlipAnalysisResult | null;
+  correlationAnalysis: CorrelationImpact | null;
   analysisLoading: boolean;
   highlightTeam?: string | null;
   lastError?: string | null;

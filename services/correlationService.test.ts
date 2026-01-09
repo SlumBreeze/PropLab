@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { calculateSlipGrade, detectPositiveStacks, detectCannibalization } from './correlationService';
-import { Slip, SlipSelection } from '../types';
+import { Slip, SlipSelection, PropMarketKey } from '../types';
 
 // Mock Data Helper
 const createMockSelection = (
@@ -8,7 +8,7 @@ const createMockSelection = (
   playerId: string,
   team: string,
   position: 'QB' | 'WR' | 'RB',
-  market: 'player_pass_yds' | 'player_reception_yds' | 'player_rush_yds',
+  market: PropMarketKey,
   side: 'OVER' | 'UNDER'
 ): SlipSelection => ({
   id,

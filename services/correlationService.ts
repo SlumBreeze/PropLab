@@ -1,4 +1,4 @@
-import { SlipSelection, GameEvent, SportKey } from '../types';
+import { SlipSelection, GameEvent, SportKey, CorrelationImpact } from '../types';
 
 // --------------------------------------------------------------------------------
 // CORRELATION MATRIX
@@ -23,12 +23,6 @@ const CORRELATION_RULES: Record<string, CorrelationRule> = {
   // Negative NBA
   'player_rebounds + player_rebounds': { score: -0.30, description: 'Competing for Rebounds' },
 };
-
-export interface CorrelationImpact {
-  score: number;
-  details: string[];
-  grade: 'A' | 'B' | 'C' | 'D' | 'F';
-}
 
 /**
  * Checks if two props are correlated.
