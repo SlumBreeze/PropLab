@@ -8,10 +8,10 @@
 - [ ] Task: Conductor - User Manual Verification 'Security Foundation & Audit' (Protocol in workflow.md)
 
 ## Phase 2: Service Refactoring (TDD)
-- [ ] Task: Refactor `geminiService.ts` to use environment variables
-    - [ ] Write tests to verify `geminiService` uses `VITE_GEMINI_KEY`
-    - [ ] Update `geminiService.ts` implementation
-- [ ] Task: Refactor `oddsService.ts` to use environment variables
+- [x] Task: Refactor `geminiService.ts` to use environment variables
+    - [x] Write tests to verify `geminiService` uses `VITE_GEMINI_KEY`
+    - [x] Update `geminiService.ts` implementation
+- [~] Task: Refactor `oddsService.ts` to use environment variables
     - [ ] Write tests to verify `oddsService` uses `VITE_ODDS_API_KEY`
     - [ ] Update `oddsService.ts` implementation
 - [ ] Task: Conductor - User Manual Verification 'Service Refactoring' (Protocol in workflow.md)

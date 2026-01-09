@@ -1,7 +1,7 @@
 import { SportKey, PropMarketKey, GameEvent, PropLine } from '../types';
 
 // IMPORTANT: Replace with your actual API key if this one is exhausted
-const API_KEY = import.meta.env.VITE_ODDS_API_KEY;
+const getOddsApiKey = () => import.meta.env.VITE_ODDS_API_KEY;
 const BASE_URL = 'https://api.the-odds-api.com/v4/sports';
 
 // Cache Duration: 5 minutes (reduced for fresher data)
@@ -98,7 +98,8 @@ export const fetchUpcomingEvents = async (
   forceRefresh = false
 ): Promise<GameEvent[]> => {
   const fetcher = async (): Promise<GameEvent[]> => {
-    let url = `${BASE_URL}/${sport}/events?apiKey=${API_KEY}`;
+    const apiKey = getOddsApiKey();
+    let url = `${BASE_URL}/${sport}/events?apiKey=${apiKey}`;
 
     // If date filter provided, add time range
     // Format must be exactly YYYY-MM-DDTHH:MM:SSZ (no milliseconds)
@@ -108,7 +109,7 @@ export const fetchUpcomingEvents = async (
       url += `&commenceTimeFrom=${startOfDay}&commenceTimeTo=${endOfDay}`;
     }
 
-    console.log(`[OddsService] 📡 Events URL: ${url.replace(API_KEY, 'API_KEY_HIDDEN')}`);
+    console.log(`[OddsService] 📡 Events URL: ${url.replace(apiKey || '', 'API_KEY_HIDDEN')}`);
 
     const res = await fetch(url);
 
@@ -153,9 +154,10 @@ export const fetchPropsForGame = async (
   const cacheKey = `odds_${gameId}_${marketStr}_${today}`;
 
   const fetcher = async (): Promise<PropLine[]> => {
-    const url = `${BASE_URL}/${sport}/events/${gameId}/odds?apiKey=${API_KEY}&regions=us,us_dfs&markets=${marketStr}&oddsFormat=american`;
+    const apiKey = getOddsApiKey();
+    const url = `${BASE_URL}/${sport}/events/${gameId}/odds?apiKey=${apiKey}&regions=us,us_dfs&markets=${marketStr}&oddsFormat=american`;
 
-    console.log(`[OddsService] 📡 Props URL: ${url.replace(API_KEY, 'API_KEY_HIDDEN')}`);
+    console.log(`[OddsService] 📡 Props URL: ${url.replace(apiKey || '', 'API_KEY_HIDDEN')}`);
 
     const res = await fetch(url);
 
@@ -270,7 +272,8 @@ export const clearCache = () => {
  */
 export const testApiConnection = async (): Promise<boolean> => {
   try {
-    const url = `${BASE_URL}/?apiKey=${API_KEY}`;
+    const apiKey = getOddsApiKey();
+    const url = `${BASE_URL}/?apiKey=${apiKey}`;
     console.log('[OddsService] 🔌 Testing API connection...');
     const res = await fetch(url);
 

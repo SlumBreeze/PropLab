@@ -2,13 +2,12 @@ import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import { Slip, SlipAnalysisResult, PlayerSituational } from '../types';
 
-const API_KEY = import.meta.env.VITE_GEMINI_KEY;
+const getGeminiApiKey = () => import.meta.env.VITE_GEMINI_KEY;
 
-if (!API_KEY) {
-  console.warn("VITE_GEMINI_KEY is missing. AI analysis will not work.");
-}
-
-const genAI = new GoogleGenAI({ apiKey: API_KEY || "MISSING_KEY" });
+const getGenAI = () => {
+  const apiKey = getGeminiApiKey();
+  return new GoogleGenAI({ apiKey: apiKey || "MISSING_KEY" });
+};
 
 // Using a model that supports JSON mode well
 const MODEL_NAME = "gemini-2.0-flash";
@@ -44,7 +43,8 @@ export const fetchPlayerSituationalContext = async (
   opponent: string, 
   sport: string
 ): Promise<PlayerSituational | null> => {
-  if (!API_KEY) return null;
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) return null;
 
   const prompt = `
 You are a Sports Injury & Situational Analyst for ${sport}.
@@ -72,6 +72,7 @@ Based on your knowledge (up to your cutoff) and general logic, output a JSON obj
 `;
 
   try {
+    const genAI = getGenAI();
     const response = await genAI.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
@@ -100,7 +101,8 @@ export const analyzeSlip = async (slip: Slip): Promise<SlipAnalysisResult> => {
     return { grade: 'N/A', analysis: 'Empty slip.', correlationScore: 0, recommendation: 'Warning' };
   }
 
-  if (!API_KEY) {
+  const apiKey = getGeminiApiKey();
+  if (!apiKey) {
     return {
       grade: '?',
       analysis: 'AI analysis unavailable - missing API key',
@@ -143,6 +145,7 @@ Respond with ONLY valid JSON (no markdown, no code blocks):
 `;
 
   try {
+    const genAI = getGenAI();
     const response = await genAI.models.generateContent({
       model: MODEL_NAME,
       contents: prompt,
