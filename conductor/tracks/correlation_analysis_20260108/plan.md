@@ -12,7 +12,7 @@
 *   [x] Task: Verify end-to-end flow: adding correlated players updates the UI with the correct grade and analysis. 2abdcce
 *   [x] Task: Conductor - User Manual Verification 'Phase 2: Context Integration & UI' (Protocol in workflow.md) 2abdcce
 
-## Phase 3: Finalization
-*   [ ] Task: Run full test suite (`npm run test`) to ensure no regressions in scoring or matching services.
-*   [ ] Task: Perform a final code review for adherence to "Architecture Rules" in `tech-stack.md`.
-*   [ ] Task: Conductor - User Manual Verification 'Phase 3: Finalization' (Protocol in workflow.md)
+## Phase 3: Finalization [checkpoint: dd2ea60]
+*   [x] Task: Run full test suite (`npm run test`) to ensure no regressions in scoring or matching services. dd2ea60
+*   [x] Task: Perform a final code review for adherence to "Architecture Rules" in `tech-stack.md`. dd2ea60
+*   [x] Task: Conductor - User Manual Verification 'Phase 3: Finalization' (Protocol in workflow.md) dd2ea60
