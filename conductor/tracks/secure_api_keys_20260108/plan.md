@@ -1,10 +1,10 @@
 # Implementation Plan - Secure API Keys
 
-## Phase 1: Security Foundation & Audit
+## Phase 1: Security Foundation & Audit [checkpoint: e14b99e]
 - [x] Task: Audit codebase for hardcoded keys and verify `.gitignore`
-- [~] Task: Create `.env` and `.env.example` templates
-- [~] Task: Define TypeScript interfaces for environment variables in `vite-env.d.ts`
-- [ ] Task: Conductor - User Manual Verification 'Security Foundation & Audit' (Protocol in workflow.md)
+- [x] Task: Create `.env` and `.env.example` templates
+- [x] Task: Define TypeScript interfaces for environment variables in `vite-env.d.ts`
+- [x] Task: Conductor - User Manual Verification 'Security Foundation & Audit' (Protocol in workflow.md)
 - [ ] Task: Conductor - User Manual Verification 'Security Foundation & Audit' (Protocol in workflow.md)
 
 ## Phase 2: Service Refactoring (TDD)
